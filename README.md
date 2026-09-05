@@ -70,18 +70,5 @@ cd astro-glitch
 node server.js
 ```
 
-Open `http://localhost:8085` in any modern web browser!
-
----
-
-## 🌐 Deploy to Web (100% Static & Free)
-
-This project has zero external dependencies or build tools. You can deploy it instantly:
-- **GitHub Pages**: Go to Repository Settings -> Pages -> Deploy from Branch (`main` / root).
-- **Vercel**: `vercel deploy`
-- **Netlify**: Drag and drop the folder or connect your GitHub repository.
-
----
-
 ## 📜 License
 MIT License. Built with HTML5 Canvas & Web Audio API.
