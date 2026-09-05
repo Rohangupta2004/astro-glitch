@@ -8,7 +8,7 @@ class ThreeRenderer {
         this.width = 960;
         this.height = 540;
         this.SCALE = 0.05; // 1 2D unit = 0.05 3D world units
-        this.DEPTH = 24 * this.SCALE; // Standard platform depth
+        this.DEPTH = 52 * this.SCALE; // Chunky extrusion so platforms read as solid volumes, not slabs
 
         this.scene = null;
         this.camera = null;
@@ -55,10 +55,16 @@ class ThreeRenderer {
             return;
         }
 
-        // 1. Scene
+        // 1. Scene - textured nebula backdrop instead of a flat clear colour
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x02040a);
-        this.scene.fog = new THREE.FogExp2(0x02040a, 0.015);
+        this.scene.fog = new THREE.FogExp2(0x02040a, 0.008);
+
+        if (window.GlitchTextures) {
+            this.nebulaTex = GlitchTextures.nebula('sky');
+            this.scene.background = this.nebulaTex;
+        } else {
+            this.scene.background = new THREE.Color(0x02040a);
+        }
 
         // 2. Camera (Perspective for rich 2.5D/3D depth)
         const aspect = this.width / this.height;
@@ -76,19 +82,53 @@ class ThreeRenderer {
         this.renderer.setSize(this.width, this.height, false);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.25;
+        this.renderer.toneMappingExposure = 1.15;
 
-        // 4. Lighting Rig
-        this.ambientLight = new THREE.AmbientLight(0x1a2639, 1.4);
+        // Correct colour pipeline so the sRGB texture maps are not washed out.
+        if (THREE.sRGBEncoding) this.renderer.outputEncoding = THREE.sRGBEncoding;
+
+        // Real shadows - the single biggest "this is 3D" cue.
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        // Image-based lighting from the nebula, so metal surfaces reflect the
+        // environment instead of reading as flat shaded blocks.
+        if (this.nebulaTex && THREE.PMREMGenerator) {
+            const pmrem = new THREE.PMREMGenerator(this.renderer);
+            pmrem.compileEquirectangularShader();
+            this.envMap = pmrem.fromEquirectangular(this.nebulaTex).texture;
+            this.scene.environment = this.envMap;
+            pmrem.dispose();
+        }
+
+        // 4. Lighting Rig - ambient is kept low because the environment map
+        // now supplies most of the soft fill.
+        this.ambientLight = new THREE.AmbientLight(0x2b3a52, 1.5);
         this.scene.add(this.ambientLight);
 
-        this.dirLight = new THREE.DirectionalLight(0xa5f3fc, 1.6);
+        this.dirLight = new THREE.DirectionalLight(0xa5f3fc, 1.8);
         this.dirLight.position.set(15, 25, 20);
+        this.dirLight.castShadow = true;
+        this.dirLight.shadow.mapSize.set(2048, 2048);
+        this.dirLight.shadow.camera.near = 1;
+        this.dirLight.shadow.camera.far = 90;
+        this.dirLight.shadow.camera.left = -30;
+        this.dirLight.shadow.camera.right = 30;
+        this.dirLight.shadow.camera.top = 22;
+        this.dirLight.shadow.camera.bottom = -22;
+        this.dirLight.shadow.bias = -0.0008;
+        this.dirLight.shadow.normalBias = 0.02;
         this.scene.add(this.dirLight);
 
         const fillLight = new THREE.DirectionalLight(0xd946ef, 0.8);
         fillLight.position.set(-20, -10, 10);
         this.scene.add(fillLight);
+
+        // Rim light from behind. This separates each platform's silhouette from
+        // the backdrop and stops the scene reading as flat cutouts.
+        const rimLight = new THREE.DirectionalLight(0x7dd3fc, 1.5);
+        rimLight.position.set(-8, 6, -20);
+        this.scene.add(rimLight);
 
         // Player point light (dynamic follower)
         this.playerLight = new THREE.PointLight(0x00f3ff, 2.0, 12);
@@ -126,88 +166,151 @@ class ThreeRenderer {
         this.buildPowerFX();
     }
 
+    // Rescale a BoxGeometry's UVs so a tiling texture keeps a constant
+    // real-world size regardless of how wide or tall the box is. Face order in
+    // a BoxGeometry is +X, -X, +Y, -Y, +Z, -Z (4 verts each), and each face
+    // needs a different pair of dimensions mapped to U and V.
+    tileUVs(geo, w, h, tileSize) {
+        const uv = geo.attributes.uv;
+        if (!uv) return;
+
+        const d = this.DEPTH;
+        const su = [d, d, w, w, w, w];
+        const sv = [h, h, d, d, h, h];
+
+        for (let face = 0; face < 6; face++) {
+            const ru = Math.max(0.25, su[face] / tileSize);
+            const rv = Math.max(0.25, sv[face] / tileSize);
+            for (let i = 0; i < 4; i++) {
+                const idx = face * 4 + i;
+                uv.setXY(idx, uv.getX(idx) * ru, uv.getY(idx) * rv);
+            }
+        }
+        uv.needsUpdate = true;
+    }
+
     createMaterials() {
-        // Platform Standard
-        this.materials.platSolid = new THREE.MeshStandardMaterial({
-            color: 0x161d2b,
-            metalness: 0.85,
-            roughness: 0.25,
-            emissive: 0x050c18,
-            emissiveIntensity: 0.5
-        });
+        const T = window.GlitchTextures;
 
-        // Platform Highlight Top Trim
-        this.materials.platEdge = new THREE.MeshStandardMaterial({
-            color: 0x00f3ff,
+        // Platform Standard - textured hull plating (albedo + bump + roughness
+        // + emissive accent strips). Falls back to flat shading if the texture
+        // library failed to load.
+        const hull = T && T.metalPanel('hull', { seed: 1337, cells: 4, base: '#33425c', dark: '#1b2537' });
+        this.materials.platSolid = new THREE.MeshStandardMaterial(Object.assign({
+            color: 0xffffff,
+            // Fully metallic surfaces go black without strong reflections, so
+            // this sits mid-range and leans on the env map for its highlights.
+            metalness: 0.55,
+            roughness: 0.45,
+            envMapIntensity: 1.5,
             emissive: 0x00f3ff,
-            emissiveIntensity: 0.8,
-            roughness: 0.2
+            emissiveIntensity: 0.6,
+            bumpScale: 0.035
+        }, hull || { color: 0x161d2b, metalness: 0.85, roughness: 0.25 }));
+
+        // Platform Highlight Top Trim. Kept deliberately dim: this strip runs
+        // the full width of every platform, and at full emissive ACES tone
+        // mapping clipped it to solid white, hiding the hull texture below.
+        this.materials.platEdge = new THREE.MeshStandardMaterial({
+            color: 0x0b7c8c,
+            emissive: 0x00f3ff,
+            emissiveIntensity: 0.35,
+            metalness: 0.9,
+            roughness: 0.3
         });
 
-        // Collapsing Platform Material
-        this.materials.platCollapse = new THREE.MeshStandardMaterial({
-            color: 0x241926,
+        // Collapsing Platform - fractured plating with glowing stress cracks
+        const cracked = T && T.crackedPlate('collapse', { seed: 5521 });
+        this.materials.platCollapse = new THREE.MeshStandardMaterial(Object.assign({
+            color: 0xffffff,
             metalness: 0.7,
-            roughness: 0.35,
-            emissive: 0x4a0b22,
-            emissiveIntensity: 0.4
-        });
-
-        this.materials.platCollapseTriggered = new THREE.MeshStandardMaterial({
-            color: 0xff0055,
+            roughness: 0.55,
             emissive: 0xff0055,
-            emissiveIntensity: 1.2,
-            roughness: 0.2
-        });
+            emissiveIntensity: 0.55,
+            bumpScale: 0.045
+        }, cracked || { color: 0x241926, metalness: 0.7, roughness: 0.35 }));
 
-        // Destructible Platform (Titanium / Hazard Orange)
-        this.materials.platDestruct = new THREE.MeshStandardMaterial({
-            color: 0x1e293b,
+        this.materials.platCollapseTriggered = new THREE.MeshStandardMaterial(Object.assign({
+            color: 0xff6688,
+            metalness: 0.7,
+            roughness: 0.5,
+            emissive: 0xff0055,
+            emissiveIntensity: 2.4,
+            bumpScale: 0.045
+        }, cracked || { color: 0xff0055 }));
+
+        // Destructible Platform - bolted hazard plating
+        const hazard = T && T.hazardPlate('destruct', { seed: 907 });
+        this.materials.platDestruct = new THREE.MeshStandardMaterial(Object.assign({
+            color: 0xffffff,
             metalness: 0.8,
-            roughness: 0.3,
+            roughness: 0.5,
             emissive: 0xd97706,
-            emissiveIntensity: 0.6
-        });
+            emissiveIntensity: 0.7,
+            bumpScale: 0.04
+        }, hazard || { color: 0x1e293b, metalness: 0.8, roughness: 0.3 }));
 
-        // Inversion Field (Translucent glitch purple)
+        // Inversion Field (Translucent glitch purple holo-grid)
+        const invGrid = T && T.holoGrid('inversion', { seed: 606, line: '#a855f7' });
         this.materials.inversionZone = new THREE.MeshStandardMaterial({
+            map: invGrid ? invGrid.map : null,
             color: 0xa855f7,
             emissive: 0xa855f7,
-            emissiveIntensity: 0.6,
+            emissiveMap: invGrid ? invGrid.map : null,
+            emissiveIntensity: 0.9,
             transparent: true,
-            opacity: 0.35,
+            opacity: 0.4,
             roughness: 0.1,
             metalness: 0.1
         });
 
-        // Fake Wall (Holographic Cyan)
+        // Fake Wall (Holographic Cyan scanline grid)
+        const holo = T && T.holoGrid('fakewall', { seed: 313, line: '#00f3ff' });
         this.materials.fakeWall = new THREE.MeshStandardMaterial({
+            map: holo ? holo.map : null,
             color: 0x00f3ff,
             emissive: 0x00f3ff,
-            emissiveIntensity: 0.8,
+            emissiveMap: holo ? holo.map : null,
+            emissiveIntensity: 1.0,
             transparent: true,
-            opacity: 0.3,
-            wireframe: false
+            opacity: 0.38
         });
 
-        // Plasma Spike Material (Hot magenta-yellow glow)
+        // Plasma Spike Material (Hot magenta-yellow energy blade)
+        const plasmaTex = T && T.plasma('spike', { seed: 77 });
         this.materials.spikePlasma = new THREE.MeshStandardMaterial({
-            color: 0xff0055,
-            emissive: 0xff0055,
-            emissiveIntensity: 2.2,
-            roughness: 0.2,
-            metalness: 0.5
+            map: plasmaTex ? plasmaTex.map : null,
+            emissiveMap: plasmaTex ? plasmaTex.map : null,
+            color: 0xffffff,
+            emissive: 0xffffff,
+            emissiveIntensity: 2.4,
+            roughness: 0.25,
+            metalness: 0.4
         });
 
         this.materials.spikeCore = new THREE.MeshBasicMaterial({
             color: 0xfff066
         });
 
-        this.materials.spikeBase = new THREE.MeshStandardMaterial({
-            color: 0x0f172a,
+        // Spike Base - same hull plating, tighter tiling
+        const baseTex = T && T.metalPanel('spikebase', { seed: 4801, cells: 2, base: '#0f172a', dark: '#060b14' });
+        this.materials.spikeBase = new THREE.MeshStandardMaterial(Object.assign({
+            color: 0xffffff,
             metalness: 0.9,
-            roughness: 0.2
-        });
+            roughness: 0.4,
+            bumpScale: 0.03
+        }, baseTex || { color: 0x0f172a, metalness: 0.9, roughness: 0.2 }));
+
+        // Player / enemy chassis - PCB traces under armour plating
+        const chassis = T && T.circuitChassis('bot', { seed: 4242 });
+        this.materials.chassis = new THREE.MeshStandardMaterial(Object.assign({
+            color: 0xffffff,
+            metalness: 0.88,
+            roughness: 0.35,
+            emissive: 0x00f3ff,
+            emissiveIntensity: 0.9,
+            bumpScale: 0.03
+        }, chassis || { color: 0x0c1e33, metalness: 0.85, roughness: 0.2 }));
     }
 
     createStarfield() {
@@ -218,11 +321,11 @@ class ThreeRenderer {
         const colors = new Float32Array(count * 3);
 
         const palette = [
-            new THREE.Color(0x00f3ff),
-            new THREE.Color(0xd946ef),
-            new THREE.Color(0x38bdf8),
             new THREE.Color(0xffffff),
-            new THREE.Color(0xfacc15)
+            new THREE.Color(0xdbeafe),
+            new THREE.Color(0x93c5fd),
+            new THREE.Color(0xfde68a),
+            new THREE.Color(0xa5f3fc)
         ];
 
         for (let i = 0; i < count; i++) {
@@ -240,7 +343,7 @@ class ThreeRenderer {
         starGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
         const starMat = new THREE.PointsMaterial({
-            size: 0.35,
+            size: 0.2,
             vertexColors: true,
             transparent: true,
             opacity: 0.9,
@@ -250,11 +353,44 @@ class ThreeRenderer {
         this.starfield = new THREE.Points(starGeo, starMat);
         this.scene.add(this.starfield);
 
-        // Backdrop Cyber Grid Plane
-        const gridHelper = new THREE.GridHelper(90, 45, 0x00f3ff, 0x172554);
-        gridHelper.position.set(0, -14, -8);
-        gridHelper.rotation.x = Math.PI * 0.15;
-        this.scene.add(gridHelper);
+        // Backdrop: a real textured hull wall well behind the play plane.
+        // (A wireframe GridHelper used to live here - it read as a 90s OpenGL
+        // demo and flattened the whole scene, so it is gone.)
+        const T = window.GlitchTextures;
+        const wallTex = T && T.metalPanel('backwall', {
+            seed: 8821, cells: 3, base: '#0d1420', dark: '#05080f', rx: 14, ry: 8
+        });
+        const wallMat = new THREE.MeshStandardMaterial(Object.assign({
+            color: 0xffffff,
+            metalness: 0.75,
+            roughness: 0.62,
+            bumpScale: 0.06,
+            emissiveIntensity: 0.35
+        }, wallTex || { color: 0x0d1420 }));
+        wallMat.emissive = new THREE.Color(0x00f3ff);
+
+        const backWall = new THREE.Mesh(new THREE.PlaneGeometry(150, 80), wallMat);
+        backWall.position.set(0, 0, -34);
+        backWall.receiveShadow = true;
+        this.scene.add(backWall);
+
+        // Deck plate running under the play plane, catching the key light so
+        // platforms cast visible shadows onto something.
+        const deckTex = T && T.metalPanel('deck', {
+            seed: 3312, cells: 3, base: '#0a1018', dark: '#04070c', rx: 18, ry: 6
+        });
+        const deckMat = new THREE.MeshStandardMaterial(Object.assign({
+            color: 0xffffff,
+            metalness: 0.85,
+            roughness: 0.45,
+            bumpScale: 0.05
+        }, deckTex || { color: 0x0a1018 }));
+
+        const deck = new THREE.Mesh(new THREE.PlaneGeometry(160, 60), deckMat);
+        deck.rotation.x = -Math.PI / 2;
+        deck.position.set(0, -19, -10);
+        deck.receiveShadow = true;
+        this.scene.add(deck);
     }
 
     // --- PROCEDURAL 3D PLAYER MODEL ("BYTE") ---
@@ -264,14 +400,11 @@ class ThreeRenderer {
 
         // 1. Torso Chassis (Chamfered Cyber Cube)
         const bodyGeo = new THREE.BoxGeometry(1.4, 1.4, 1.1);
-        this.playerBodyMat = new THREE.MeshStandardMaterial({
-            color: 0x0c1e33,
-            metalness: 0.85,
-            roughness: 0.2,
-            emissive: 0x021124,
-            emissiveIntensity: 0.4
-        });
+        this.playerBodyMat = this.materials.chassis.clone();
+        this.playerBodyMat.emissiveIntensity = 0.7;
         const bodyMesh = new THREE.Mesh(bodyGeo, this.playerBodyMat);
+        bodyMesh.castShadow = true;
+        bodyMesh.receiveShadow = true;
         this.playerMesh.add(bodyMesh);
 
         // Body Neon Edge Trim
@@ -424,6 +557,12 @@ class ThreeRenderer {
             const d = this.DEPTH;
 
             const boxGeo = new THREE.BoxGeometry(w, h, d);
+
+            // Tile the texture by world size rather than stretching one copy
+            // across the whole platform. Materials are shared, so the repeat
+            // has to live in the geometry's UVs.
+            this.tileUVs(boxGeo, w, h, 0.85);
+
             let mat = this.materials.platSolid;
 
             if (plat.type === 'collapse') {
@@ -437,15 +576,19 @@ class ThreeRenderer {
             }
 
             const mesh = new THREE.Mesh(boxGeo, mat);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
             const x3d = (plat.x + plat.width / 2 - 480) * this.SCALE;
             const y3d = -(plat.y + plat.height / 2 - 270) * this.SCALE;
             mesh.position.set(x3d, y3d, 0);
 
             // Add top beveled glowing trim line to normal platforms
             if (plat.type === 'solid' || plat.type === 'moving_h') {
-                const trimGeo = new THREE.BoxGeometry(w, 0.12, d + 0.05);
+                // Inset from the front face so it reads as a recessed light
+                // channel in the plating, not a glowing bar laid on top.
+                const trimGeo = new THREE.BoxGeometry(w * 0.97, 0.05, d * 0.55);
                 const trimMesh = new THREE.Mesh(trimGeo, this.materials.platEdge);
-                trimMesh.position.set(0, h / 2 - 0.06, 0);
+                trimMesh.position.set(0, h / 2 - 0.025, 0);
                 mesh.add(trimMesh);
             }
 
@@ -776,8 +919,9 @@ class ThreeRenderer {
                 this.playerBodyMat.emissiveIntensity = 2.0;
             } else {
                 this.playerBodyMat.wireframe = false;
-                this.playerBodyMat.emissive.setHex(0x021124);
-                this.playerBodyMat.emissiveIntensity = 0.4;
+                // Restore the chassis circuit glow, not the old flat tint.
+                this.playerBodyMat.emissive.setHex(0x00f3ff);
+                this.playerBodyMat.emissiveIntensity = 0.7;
             }
 
             // Thruster flame visibility
@@ -932,12 +1076,17 @@ class ThreeRenderer {
         // Smooth camera lerp
         this.camera.position.x += (targetCamX - this.camera.position.x) * 0.1;
         this.camera.position.y += (targetCamY - this.camera.position.y) * 0.1;
-        this.camera.position.z = 25.5;
+        this.camera.position.z = 22.5;
 
         // Smooth Gravity Inversion Roll (180° roll when upside down)
         const targetRoll = p.gravityDir === -1 ? Math.PI : 0;
         this.currentGravityRoll += (targetRoll - this.currentGravityRoll) * 0.12;
         this.camera.rotation.z = this.currentGravityRoll;
+
+        // Slight downward pitch. Dead-on the boxes only ever show their front
+        // face and the scene reads as 2D cutouts; a few degrees reveals the top
+        // and side faces, which is what actually sells the extrusion.
+        this.camera.rotation.x = -0.085;
 
         // 10. Execute WebGL Render Call
         this.renderer.render(this.scene, this.camera);

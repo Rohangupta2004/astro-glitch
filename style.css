@@ -150,6 +150,19 @@ canvas#gameCanvas {
     width: 100%;
     height: 100%;
     display: block;
+    position: relative;
+    z-index: 1;
+}
+
+/* WebGL stage. Hidden until 3D mode is switched on, and always behind the 2D
+   canvas, which becomes a transparent particle/FX overlay in 3D mode. */
+canvas#gameCanvas3D {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    z-index: 0;
 }
 
 /* CRT Scanline Overlay */

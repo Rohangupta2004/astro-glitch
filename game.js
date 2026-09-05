@@ -166,6 +166,16 @@ class GameEngine {
         this.canvas.width = this.width;
         this.canvas.height = this.height;
 
+        // 3D stage. The renderer is built lazily the first time 3D is enabled,
+        // so 2D-only players never pay the texture-generation cost.
+        this.canvas3d = document.getElementById('gameCanvas3D');
+        if (this.canvas3d) {
+            this.canvas3d.width = this.width;
+            this.canvas3d.height = this.height;
+        }
+        this.renderer3d = null;
+        this.is3D = false;
+
         this.particles = new ParticleSystem();
         this.camera = new Camera();
 
@@ -432,6 +442,11 @@ class GameEngine {
         this.levelWon = false;
         this.powers.slowmoActive = false;
         this.powers.isRewinding = false;
+
+        // Rebuild the 3D stage for the new sector's geometry.
+        if (this.renderer3d) {
+            this.renderer3d.buildLevel(this.level);
+        }
 
         this.updateHUD();
         this.showBanner(`${this.level.title}: ${this.level.subtitle}`, 2200);
@@ -1435,7 +1450,41 @@ class GameEngine {
 
     // --- RENDERING ---
 
+    // Switch between the 2D canvas renderer and the textured WebGL stage.
+    // Returns false if 3D could not be started (no WebGL / scripts missing),
+    // so the caller can leave the button in its 2D state.
+    set3DMode(enabled) {
+        if (enabled && !this.renderer3d) {
+            if (!window.THREE || !window.ThreeRenderer || !this.canvas3d) return false;
+            try {
+                this.renderer3d = new ThreeRenderer(this.canvas3d);
+                this.renderer3d.buildLevel(this.level);
+            } catch (err) {
+                console.error('3D renderer failed to start:', err);
+                this.renderer3d = null;
+                return false;
+            }
+        }
+
+        this.is3D = !!(enabled && this.renderer3d);
+        if (this.canvas3d) this.canvas3d.style.display = this.is3D ? 'block' : 'none';
+
+        try {
+            localStorage.setItem('astroglitch_3d', this.is3D ? '1' : '0');
+        } catch (e) { /* private mode - preference just won't persist */ }
+
+        const btn = document.getElementById('btnRender3D');
+        if (btn) btn.textContent = this.is3D ? '🧊 3D: ON' : '🧊 3D: OFF';
+
+        return true;
+    }
+
     render() {
+        if (this.is3D && this.renderer3d) {
+            this.render3D();
+            return;
+        }
+
         const ctx = this.ctx;
         ctx.save();
         ctx.clearRect(0, 0, this.width, this.height);
@@ -1484,6 +1533,26 @@ class GameEngine {
         }
 
         // Post-processing FX (Time-slow vignette / chromatic shift)
+        if (this.powers.slowmoActive) {
+            this.renderSlowMoFilter(ctx);
+        }
+
+        ctx.restore();
+    }
+
+    // 3D pass: WebGL draws the world, then the 2D canvas is reused as a
+    // transparent overlay so particles and the slow-mo filter still land on
+    // top of the scene rather than being lost.
+    render3D() {
+        this.renderer3d.render(this);
+
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.clearRect(0, 0, this.width, this.height);
+        ctx.translate(this.camera.offsetX, this.camera.offsetY);
+
+        this.particles.draw(ctx);
+
         if (this.powers.slowmoActive) {
             this.renderSlowMoFilter(ctx);
         }

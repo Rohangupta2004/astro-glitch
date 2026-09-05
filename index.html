@@ -26,6 +26,7 @@
         <div class="header-controls">
             <a href="https://www.vicharakai.com" target="_blank" rel="noopener" class="btn-header btn-vicharak" title="Visit VicharakAI">VICHARAK AI</a>
             <button id="btnInstall" class="btn-header" style="display: none; border-color: var(--neon-yellow); color: var(--neon-yellow);">📲 INSTALL</button>
+            <button id="btnRender3D" class="btn-header">🧊 3D: OFF</button>
             <button id="btnSound" class="btn-header">🔊 SOUND ON</button>
             <button id="btnHelp" class="btn-header">❓ POWERS</button>
             <button id="btnLevelSelect" class="btn-header">🗺️ SECTORS</button>
@@ -35,6 +36,9 @@
 
     <!-- Main Game Stage -->
     <main class="stage-wrapper">
+        <!-- 3D stage sits behind; the 2D canvas stays on top and is used as a
+             transparent overlay for particles and screen FX while in 3D mode. -->
+        <canvas id="gameCanvas3D"></canvas>
         <canvas id="gameCanvas"></canvas>
         <div class="scanlines"></div>
 
@@ -268,6 +272,9 @@
     </div>
 
     <!-- Scripts -->
+    <script src="three.min.js"></script>
+    <script src="textures.js?v=hero2"></script>
+    <script src="renderer3d.js?v=hero2"></script>
     <script src="audio.js?v=hero2"></script>
     <script src="levels.js?v=hero2"></script>
     <script src="game.js?v=hero2"></script>
@@ -288,6 +295,31 @@
 
             const victoryModal = document.getElementById('victoryModal');
             const btnPlayAgain = document.getElementById('btnPlayAgain');
+
+            // 3D stage toggle. The preference is restored on load, but only
+            // after the engine exists, and it silently stays 2D if WebGL is
+            // unavailable on this device.
+            const btnRender3D = document.getElementById('btnRender3D');
+            if (btnRender3D) {
+                btnRender3D.addEventListener('click', () => {
+                    const g = window.game;
+                    if (!g) return;
+                    if (!g.set3DMode(!g.is3D)) {
+                        btnRender3D.textContent = '🧊 3D: N/A';
+                    }
+                    window.soundManager.playClick();
+                });
+
+                let want3D = false;
+                try { want3D = localStorage.getItem('astroglitch_3d') === '1'; } catch (e) { }
+                if (want3D) {
+                    const restore = () => {
+                        if (window.game) window.game.set3DMode(true);
+                        else setTimeout(restore, 60);
+                    };
+                    restore();
+                }
+            }
 
             btnHelp.addEventListener('click', () => {
                 helpModal.classList.remove('hidden');

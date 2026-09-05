@@ -1,8 +1,11 @@
-const CACHE_NAME = 'astro-glitch-v4';
+const CACHE_NAME = 'astro-glitch-v5';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './style.css',
+  './three.min.js',
+  './textures.js',
+  './renderer3d.js',
   './audio.js',
   './levels.js',
   './game.js',
