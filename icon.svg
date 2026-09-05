@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#141c30"/>
+      <stop offset="100%" stop-color="#05070f"/>
+    </radialGradient>
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Cyber Squircle -->
+  <rect width="512" height="512" rx="120" fill="url(#bgGrad)" stroke="#00f3ff" stroke-width="6"/>
+
+  <!-- Cyber grid lines -->
+  <line x1="60" y1="256" x2="452" y2="256" stroke="rgba(0, 243, 255, 0.15)" stroke-width="2"/>
+  <line x1="256" y1="60" x2="256" y2="452" stroke="rgba(0, 243, 255, 0.15)" stroke-width="2"/>
+  <circle cx="256" cy="256" r="160" fill="none" stroke="rgba(168, 85, 247, 0.25)" stroke-width="3" stroke-dasharray="10 8"/>
+
+  <!-- Robot Antenna -->
+  <line x1="256" y1="130" x2="256" y2="90" stroke="#00f3ff" stroke-width="8" stroke-linecap="round" filter="url(#neonGlow)"/>
+  <circle cx="256" cy="80" r="14" fill="#00f3ff" filter="url(#neonGlow)"/>
+
+  <!-- Bot Body Chassis (Byte) -->
+  <rect x="146" y="130" width="220" height="210" rx="42" fill="#0d1424" stroke="#00f3ff" stroke-width="7" filter="url(#neonGlow)"/>
+
+  <!-- Visor Screen -->
+  <rect x="176" y="170" width="160" height="90" rx="20" fill="#02050c" stroke="#1e293b" stroke-width="4"/>
+
+  <!-- Emotive Visor Eyes (Cyan Neon) -->
+  <ellipse cx="216" cy="215" rx="16" ry="24" fill="#00f3ff" filter="url(#neonGlow)"/>
+  <ellipse cx="296" cy="215" rx="16" ry="24" fill="#00f3ff" filter="url(#neonGlow)"/>
+  <circle cx="220" cy="208" r="5" fill="#ffffff"/>
+  <circle cx="300" cy="208" r="5" fill="#ffffff"/>
+
+  <!-- Circuit Chevron on chest -->
+  <polygon points="256,280 230,305 244,305 244,325 268,325 268,305 282,305" fill="#a855f7" filter="url(#neonGlow)"/>
+
+  <!-- Micro-Thrusters Flare (Bottom) -->
+  <polygon points="220,340 236,395 248,340" fill="#ff007f" filter="url(#neonGlow)"/>
+  <polygon points="264,340 276,395 292,340" fill="#ff007f" filter="url(#neonGlow)"/>
+</svg>
