@@ -16,13 +16,13 @@
 
     <!-- Header Navigation & Info -->
     <header class="game-header">
-        <div class="logo-container">
+        <a href="https://www.vicharakai.com" target="_blank" rel="noopener" class="logo-container logo-link" title="Visit VicharakAI">
             <div class="logo-badge">GLITCH.OS</div>
             <div>
                 <h1 class="logo-title">ASTRO GLITCH</h1>
                 <p class="logo-subtitle">⚡ QUANTUM HEIST</p>
             </div>
-        </div>
+        </a>
         <div class="header-controls">
             <button id="btnInstall" class="btn-header" style="display: none; border-color: var(--neon-yellow); color: var(--neon-yellow);">📲 INSTALL</button>
             <button id="btnSound" class="btn-header">🔊 SOUND ON</button>
@@ -184,21 +184,32 @@
 
     <!-- Mobile Touch Controller -->
     <div class="mobile-controls">
+        <!-- LEFT: D-Pad Movement -->
         <div class="dpad-group">
-            <button id="btnLeft" class="btn-touch">◀</button>
-            <button id="btnRight" class="btn-touch">▶</button>
-            <button id="btnJump" class="btn-touch">▲</button>
+            <button id="btnLeft" class="btn-touch btn-dpad">◀</button>
+            <button id="btnJump" class="btn-touch btn-dpad btn-dpad-up">▲</button>
+            <button id="btnRight" class="btn-touch btn-dpad">▶</button>
         </div>
-        <div class="action-group">
-            <button id="btnDash" class="btn-touch btn-touch-power" title="Phase Shift">⚡</button>
-            <button id="btnSlowmo" class="btn-touch btn-touch-power" title="Chronos Slow">⏳</button>
-            <button id="btnGravity" class="btn-touch btn-touch-power" title="Polarity Invert">🚀</button>
-            <button id="btnRewind" class="btn-touch btn-touch-power" title="Quantum Rewind">⏪</button>
-            <button id="btnWormhole" class="btn-touch btn-touch-power" title="Wormhole Warp">🌌</button>
-            <button id="btnLaser" class="btn-touch btn-touch-power" title="Heat Vision">🔥</button>
-            <button id="btnShield" class="btn-touch btn-touch-power" title="Aegis Shield">🛡️</button>
-            <button id="btnSlam" class="btn-touch btn-touch-power" title="Thunder Slam">💥</button>
+
+        <!-- RIGHT: 4 Power Slots (contextual per level) -->
+        <div class="power-slots">
+            <button id="btnPower1" class="btn-touch btn-power-slot" data-power="dash" title="Phase Shift">⚡<span class="power-label">PHASE</span></button>
+            <button id="btnPower2" class="btn-touch btn-power-slot" data-power="slowmo" title="Chronos Slow">⏳<span class="power-label">SLOW</span></button>
+            <button id="btnPower3" class="btn-touch btn-power-slot" data-power="gravity" title="Polarity Invert">🚀<span class="power-label">FLIP</span></button>
+            <button id="btnPower4" class="btn-touch btn-power-slot" data-power="rewind" title="Quantum Rewind">⏪<span class="power-label">REWIND</span></button>
         </div>
+    </div>
+
+    <!-- Hidden power buttons for JS bindings (all 8 powers) -->
+    <div style="display:none;">
+        <button id="btnDash"></button>
+        <button id="btnSlowmo"></button>
+        <button id="btnGravity"></button>
+        <button id="btnRewind"></button>
+        <button id="btnWormhole"></button>
+        <button id="btnLaser"></button>
+        <button id="btnShield"></button>
+        <button id="btnSlam"></button>
     </div>
 
     <!-- How To Play Modal -->
@@ -256,9 +267,9 @@
     </div>
 
     <!-- Scripts -->
-    <script src="audio.js?v=hero"></script>
-    <script src="levels.js?v=hero"></script>
-    <script src="game.js?v=hero"></script>
+    <script src="audio.js?v=hero2"></script>
+    <script src="levels.js?v=hero2"></script>
+    <script src="game.js?v=hero2"></script>
     <script>
         // UI Modal Interactions
         document.addEventListener('DOMContentLoaded', () => {

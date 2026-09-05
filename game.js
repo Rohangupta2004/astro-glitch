@@ -356,6 +356,54 @@ class GameEngine {
         bindBtn('btnLaser', () => { this.fireHeatVision(); });
         bindBtn('btnShield', () => { this.activateShield(); });
         bindBtn('btnSlam', () => { this.triggerThunderSlam(); });
+
+        // Mobile Power Slots (4 contextual power buttons)
+        this.setupMobilePowerSlots();
+    }
+
+    setupMobilePowerSlots() {
+        const POWER_CONFIG = {
+            dash:     { icon: '\u26a1', label: 'PHASE', action: () => this.triggerDash(),        color: '#00f3ff' },
+            slowmo:   { icon: '\u23f3', label: 'SLOW',  action: () => this.toggleSlowMo(),       color: '#ff007f' },
+            gravity:  { icon: '\ud83d\ude80', label: 'FLIP',  action: () => this.triggerGravityFlip(), color: '#a855f7' },
+            rewind:   { icon: '\u23ea', label: 'REWIND',action: () => this.triggerRewind(),       color: '#ffe600' },
+            wormhole: { icon: '\ud83c\udf0c', label: 'WARP',  action: () => this.triggerWormhole(),    color: '#8b5cf6' },
+            laser:    { icon: '\ud83d\udd25', label: 'LASER', action: () => this.fireHeatVision(),    color: '#ff0055' },
+            shield:   { icon: '\ud83d\udee1\ufe0f', label: 'SHIELD',action: () => this.activateShield(),   color: '#22d3ee' },
+            slam:     { icon: '\ud83d\udca5', label: 'SLAM',  action: () => this.triggerThunderSlam(), color: '#fbbf24' }
+        };
+
+        this.powerSlotConfig = POWER_CONFIG;
+        this.powerSlotButtons = [];
+
+        for (let i = 1; i <= 4; i++) {
+            const btn = document.getElementById('btnPower' + i);
+            if (btn) {
+                this.powerSlotButtons.push(btn);
+                btn.addEventListener('pointerdown', (e) => {
+                    e.preventDefault();
+                    window.soundManager.ensureContext();
+                    const pName = btn.dataset.power;
+                    if (pName && POWER_CONFIG[pName]) {
+                        POWER_CONFIG[pName].action();
+                    }
+                });
+            }
+        }
+    }
+
+    updateMobilePowerSlots(powerNames) {
+        if (!this.powerSlotButtons || this.powerSlotButtons.length < 4) return;
+        const cfg = this.powerSlotConfig;
+        for (let i = 0; i < 4; i++) {
+            const btn = this.powerSlotButtons[i];
+            const name = powerNames[i] || 'dash';
+            const p = cfg[name] || cfg.dash;
+            btn.dataset.power = name;
+            btn.title = p.label;
+            btn.innerHTML = p.icon + '<span class="power-label">' + p.label + '</span>';
+            btn.style.borderColor = p.color;
+        }
     }
 
     loadLevel(index) {
@@ -394,6 +442,29 @@ class GameEngine {
                 evt.run(this);
             }
         }
+
+        // Update mobile power slots based on level's featured powers
+        this.setLevelPowerSlots();
+    }
+
+    setLevelPowerSlots() {
+        // Pick 4 best powers for this level
+        // Default order: dash, slowmo, gravity, rewind (first 4 sectors)
+        // Later sectors unlock wormhole, laser, shield, slam
+        const lvlIdx = this.currentLevelIndex;
+        const featured = this.level.featuredPower || 'dash';
+
+        // Power pool — later levels get more superhero powers
+        const allPowers = ['dash', 'slowmo', 'gravity', 'rewind', 'wormhole', 'laser', 'shield', 'slam'];
+        // Featured goes first, then fill from unlocked pool (up to level index)
+        const unlocked = allPowers.slice(0, Math.min(allPowers.length, 4 + Math.floor(lvlIdx / 2)));
+        const selected = [featured];
+        for (const p of unlocked) {
+            if (selected.length >= 4) break;
+            if (!selected.includes(p)) selected.push(p);
+        }
+        while (selected.length < 4) selected.push('dash');
+        this.updateMobilePowerSlots(selected);
     }
 
     resetPlayerPosition() {

@@ -63,6 +63,16 @@ body {
     gap: 10px;
 }
 
+a.logo-link {
+    text-decoration: none;
+    color: inherit;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+a.logo-link:hover {
+    opacity: 0.88;
+    transform: scale(1.02);
+}
+
 .logo-badge {
     background: linear-gradient(135deg, #ff0055, #a855f7);
     padding: 6px 10px;
@@ -398,8 +408,10 @@ canvas#gameCanvas {
     max-width: 960px;
     display: none; /* Shown on touch screens or narrow widths */
     justify-content: space-between;
-    margin-top: 12px;
-    padding: 0 8px;
+    align-items: center;
+    margin-top: 10px;
+    padding: 0 6px;
+    gap: 10px;
 }
 
 @media (max-width: 768px) {
@@ -411,39 +423,101 @@ canvas#gameCanvas {
     }
 }
 
-.dpad-group, .action-group {
-    display: flex;
-    gap: 10px;
+@media (pointer: coarse) {
+    .mobile-controls {
+        display: flex;
+    }
 }
 
-.btn-touch {
-    width: 54px;
-    height: 54px;
+.dpad-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 6px;
+    width: 170px;
+    flex-shrink: 0;
+}
+
+.btn-dpad {
+    width: 52px;
+    height: 52px;
     border-radius: 14px;
-    background: rgba(26, 32, 48, 0.85);
-    border: 1.5px solid rgba(0, 243, 255, 0.3);
-    color: #fff;
-    font-size: 20px;
+    background: rgba(16, 22, 38, 0.92);
+    border: 2px solid rgba(0, 243, 255, 0.4);
+    color: #e2e8f0;
+    font-size: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255,255,255,0.06);
     touch-action: manipulation;
+    transition: transform 0.08s, background 0.12s;
+    -webkit-user-select: none;
+    user-select: none;
+}
+.btn-dpad:active {
+    background: rgba(0, 243, 255, 0.35);
+    border-color: #00f3ff;
+    transform: scale(0.92);
+    box-shadow: 0 0 14px rgba(0, 243, 255, 0.4);
 }
 
-.btn-touch:active {
-    background: rgba(0, 243, 255, 0.4);
-    border-color: var(--neon-cyan);
-    transform: scale(0.94);
+.btn-dpad-up {
+    grid-column: 2;
+    grid-row: 1;
 }
 
-.btn-touch-power {
-    border-color: rgba(255, 0, 85, 0.4);
+/* Power Slots (4 contextual powers in 2x2 grid) */
+.power-slots {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    flex: 1;
+    max-width: 240px;
 }
-.btn-touch-power:active {
-    background: rgba(255, 0, 85, 0.4);
-    border-color: var(--neon-pink);
+
+.btn-power-slot {
+    width: 100%;
+    height: 56px;
+    border-radius: 14px;
+    background: rgba(16, 18, 32, 0.92);
+    border: 2px solid rgba(255, 0, 85, 0.45);
+    color: #fff;
+    font-size: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255,255,255,0.05);
+    touch-action: manipulation;
+    transition: transform 0.08s, background 0.12s, box-shadow 0.15s;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.btn-power-slot:active {
+    background: rgba(255, 0, 85, 0.35);
+    transform: scale(0.92);
+    box-shadow: 0 0 18px currentColor;
+}
+
+.power-label {
+    font-size: 8px;
+    font-family: var(--font-pixel);
+    letter-spacing: 1px;
+    opacity: 0.85;
+    display: block;
+    margin-top: 1px;
+}
+
+/* Legacy touch buttons (hidden power bindings) */
+.btn-touch {
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 /* Modals */

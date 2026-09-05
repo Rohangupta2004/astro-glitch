@@ -1,4 +1,4 @@
-const CACHE_NAME = 'astro-glitch-v2';
+const CACHE_NAME = 'astro-glitch-v4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
