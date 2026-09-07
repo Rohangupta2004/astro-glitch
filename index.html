@@ -27,7 +27,13 @@
             <a href="https://www.vicharakai.com" target="_blank" rel="noopener" class="btn-header btn-vicharak" title="Visit VicharakAI">VICHARAK AI</a>
             <button id="btnInstall" class="btn-header" style="display: none; border-color: var(--neon-yellow); color: var(--neon-yellow);">📲 INSTALL</button>
             <button id="btnRender3D" class="btn-header">🧊 3D: OFF</button>
+            <button id="btnOpenVideo" class="btn-header" style="border-color: #ff0055; color: #ff0055; font-weight: 800;" title="HeyGen HyperFrames Motion Graphics Video [V]">🎬 VIDEO [V]</button>
+            <button id="btnHyperframes" class="btn-header" style="border-color: #00f3ff; color: #00f3ff; font-weight: 800;" title="Hyperframe Tactical Directives & Comic Saga [H]">⚡ HYPERFRAMES</button>
+            <button id="btnWorkshop" class="btn-header" style="border-color: #ffe600; color: #ffe600;" title="Quantum Tech Workshop [U]">⚡ WORKSHOP</button>
+            <button id="btnMemories" class="btn-header" style="border-color: #00f3ff; color: #00f3ff;" title="Dr. Maya's Memory Archive">💎 ARCHIVE</button>
+            <button id="btnTouchToggle" class="btn-header" style="border-color: #00ffaa; color: #00ffaa;" title="Toggle Mobile Touch Controls & Virtual Joystick">📱 TOUCH</button>
             <button id="btnSound" class="btn-header">🔊 SOUND ON</button>
+            <button id="btnStory" class="btn-header">📖 STORY</button>
             <button id="btnHelp" class="btn-header">❓ POWERS</button>
             <button id="btnLevelSelect" class="btn-header">🗺️ SECTORS</button>
             <button id="btnRestart" class="btn-header">🔄 RETRY</button>
@@ -45,11 +51,17 @@
         <!-- In-game Floating HUD -->
         <div class="in-game-hud">
             <div class="hud-left">
-                <div id="hudLevelNum" class="hud-level-num">SECTOR 1/12</div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div id="hudLevelNum" class="hud-level-num">SECTOR 1/24</div>
+                    <button id="btnHudDirective" class="btn-hud-directive" title="Open Hyperframe Directive for this Sector [H]">⚡ DIRECTIVE [H]</button>
+                    <button id="btnHudVideo" class="btn-hud-directive" style="border-color: #ff0055; color: #ff0055;" title="Watch HeyGen HyperFrames Video [V]">🎬 VIDEO [V]</button>
+                </div>
                 <div id="hudLevelTitle" class="hud-level-title">Protocol Alpha</div>
                 <div id="hudHint" class="hud-hint">Press [SHIFT] to Phase Shift!</div>
             </div>
             <div class="hud-right">
+                <div id="hudShards" class="hud-badge hud-badge-shards">💎 0/24 SHARDS</div>
+                <div id="hudNanites" class="hud-badge hud-badge-nanites">⚡ 0 NANITES</div>
                 <div id="hudDeaths" class="hud-badge">DE-REZZED: 0</div>
             </div>
         </div>
@@ -187,21 +199,136 @@
         </div>
     </section>
 
-    <!-- Mobile Touch Controller -->
-    <div class="mobile-controls">
-        <!-- LEFT: D-Pad Movement -->
-        <div class="dpad-group">
-            <button id="btnLeft" class="btn-touch btn-dpad">◀</button>
-            <button id="btnJump" class="btn-touch btn-dpad btn-dpad-up">▲</button>
-            <button id="btnRight" class="btn-touch btn-dpad">▶</button>
+    <!-- Cyber Mobile Touch Controller Overlay -->
+    <div id="touchControlsOverlay" class="touch-controls-overlay">
+        <!-- LEFT THUMB ZONE: Virtual Analog Joystick & Mode Switcher -->
+        <div class="touch-zone touch-zone-left" id="touchZoneLeft">
+            <div class="touch-mode-bar">
+                <button id="btnToggleJoystickMode" class="btn-touch-mode" title="Toggle Joystick / Retro D-Pad">
+                    <span id="modeIcon">🕹️</span> <span id="modeText">STICK</span>
+                </button>
+            </div>
+
+            <!-- Virtual Analog Joystick -->
+            <div class="virtual-joystick-wrap" id="virtualJoystickWrap">
+                <div class="joystick-base" id="joystickBase">
+                    <div class="joystick-crosshair-h"></div>
+                    <div class="joystick-crosshair-v"></div>
+                    <div class="joystick-tick tick-left">◀</div>
+                    <div class="joystick-tick tick-right">▶</div>
+                    <div class="joystick-tick tick-up">▲<span class="tick-sub">JUMP</span></div>
+                    <div class="joystick-ring-inner"></div>
+                    <div class="joystick-knob" id="joystickKnob">
+                        <div class="knob-core"></div>
+                        <div class="knob-glow"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alternative Retro D-Pad Mode -->
+            <div class="retro-dpad-wrap hidden" id="retroDpadWrap">
+                <button id="btnLeft" class="btn-touch-dpad btn-dpad-left">◀</button>
+                <button id="btnJump" class="btn-touch-dpad btn-dpad-up">▲<span class="dpad-label">JUMP</span></button>
+                <button id="btnRight" class="btn-touch-dpad btn-dpad-right">▶</button>
+            </div>
         </div>
 
-        <!-- RIGHT: 4 Power Slots (contextual per level) -->
-        <div class="power-slots">
-            <button id="btnPower1" class="btn-touch btn-power-slot" data-power="dash" title="Phase Shift">⚡<span class="power-label">PHASE</span></button>
-            <button id="btnPower2" class="btn-touch btn-power-slot" data-power="slowmo" title="Chronos Slow">⏳<span class="power-label">SLOW</span></button>
-            <button id="btnPower3" class="btn-touch btn-power-slot" data-power="gravity" title="Polarity Invert">🚀<span class="power-label">FLIP</span></button>
-            <button id="btnPower4" class="btn-touch btn-power-slot" data-power="rewind" title="Quantum Rewind">⏪<span class="power-label">REWIND</span></button>
+        <!-- RIGHT THUMB ZONE: Easy Power Cluster & Action Buttons -->
+        <div class="touch-zone touch-zone-right" id="touchZoneRight">
+            <!-- Power Control Bar (Deck Switcher & 8-Power Radial Wheel Launcher) -->
+            <div class="power-deck-bar">
+                <button id="btnDeckSwitch" class="btn-deck-switch" title="Tap to switch between Quantum & Combat Power Decks">
+                    <span class="deck-icon" id="deckIcon">⚡</span>
+                    <span class="deck-name" id="deckName">QUANTUM</span>
+                    <span class="deck-badge" id="deckBadge">DECK 1/2</span>
+                </button>
+                <button id="btnPowerWheelToggle" class="btn-wheel-toggle" title="Tap or Hold for All 8 Powers Radial Wheel">
+                    <span class="wheel-btn-icon">☸️</span>
+                    <span class="wheel-btn-text">ALL 8</span>
+                </button>
+            </div>
+
+            <!-- Ergonomic 4-Power Arc Grid -->
+            <div class="power-arc-grid" id="powerArcGrid">
+                <button id="btnPower1" class="btn-touch-power" data-power="dash" title="Phase Shift">
+                    <span class="power-btn-icon">⚡</span>
+                    <span class="power-btn-label">PHASE</span>
+                    <div class="power-btn-cooldown" id="pCd1"></div>
+                </button>
+                <button id="btnPower2" class="btn-touch-power" data-power="slowmo" title="Chronos Slow">
+                    <span class="power-btn-icon">⏳</span>
+                    <span class="power-btn-label">SLOW</span>
+                    <div class="power-btn-cooldown" id="pCd2"></div>
+                </button>
+                <button id="btnPower3" class="btn-touch-power" data-power="gravity" title="Polarity Invert">
+                    <span class="power-btn-icon">🚀</span>
+                    <span class="power-btn-label">FLIP</span>
+                    <div class="power-btn-cooldown" id="pCd3"></div>
+                </button>
+                <button id="btnPower4" class="btn-touch-power" data-power="rewind" title="Quantum Rewind">
+                    <span class="power-btn-icon">⏪</span>
+                    <span class="power-btn-label">REWIND</span>
+                    <div class="power-btn-cooldown" id="pCd4"></div>
+                </button>
+            </div>
+
+            <!-- Action Buttons: Main Jump & Rover Contextual Action -->
+            <div class="action-buttons-group">
+                <button id="btnTouchRover" class="btn-touch-action btn-rover-action hidden" title="Mount or Dismount Apex Rover">
+                    <span class="action-btn-icon">🏎️</span>
+                    <span class="action-btn-label" id="roverBtnLabel">ROVER</span>
+                </button>
+                <button id="btnTouchJump" class="btn-touch-action btn-jump-action" title="Jump / Thrusters">
+                    <div class="jump-glow-pulse"></div>
+                    <span class="action-btn-icon" id="jumpBtnIcon">▲</span>
+                    <span class="action-btn-label" id="jumpBtnLabel">JUMP</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 8-Power Radial Quick-Cast Wheel Modal -->
+    <div id="radialWheelBackdrop" class="radial-wheel-backdrop hidden">
+        <div class="radial-wheel-container" id="radialWheelContainer">
+            <div class="radial-wheel-hub" id="radialWheelHub">
+                <div class="hub-icon" id="hubIcon">⚡</div>
+                <div class="hub-name" id="hubName">PHASE SHIFT</div>
+                <div class="hub-hint" id="hubHint">Slide to Select • Release to Cast</div>
+            </div>
+            <!-- 8 Radial Power Nodes -->
+            <div class="wheel-node" data-power="dash" data-angle="270" style="--node-angle: 270deg;">
+                <span class="node-icon">⚡</span>
+                <span class="node-label">PHASE</span>
+            </div>
+            <div class="wheel-node" data-power="slowmo" data-angle="315" style="--node-angle: 315deg;">
+                <span class="node-icon">⏳</span>
+                <span class="node-label">SLOW</span>
+            </div>
+            <div class="wheel-node" data-power="gravity" data-angle="0" style="--node-angle: 0deg;">
+                <span class="node-icon">🚀</span>
+                <span class="node-label">FLIP</span>
+            </div>
+            <div class="wheel-node" data-power="rewind" data-angle="45" style="--node-angle: 45deg;">
+                <span class="node-icon">⏪</span>
+                <span class="node-label">REWIND</span>
+            </div>
+            <div class="wheel-node" data-power="wormhole" data-angle="90" style="--node-angle: 90deg;">
+                <span class="node-icon">🌌</span>
+                <span class="node-label">WARP</span>
+            </div>
+            <div class="wheel-node" data-power="laser" data-angle="135" style="--node-angle: 135deg;">
+                <span class="node-icon">🔥</span>
+                <span class="node-label">LASER</span>
+            </div>
+            <div class="wheel-node" data-power="shield" data-angle="180" style="--node-angle: 180deg;">
+                <span class="node-icon">🛡️</span>
+                <span class="node-label">SHIELD</span>
+            </div>
+            <div class="wheel-node" data-power="slam" data-angle="225" style="--node-angle: 225deg;">
+                <span class="node-icon">💥</span>
+                <span class="node-label">SLAM</span>
+            </div>
+            <button id="btnRadialClose" class="btn-radial-close" title="Cancel">✕</button>
         </div>
     </div>
 
@@ -219,27 +346,36 @@
 
     <!-- How To Play Modal -->
     <div id="helpModal" class="modal-backdrop hidden">
-        <div class="modal-card">
+        <div class="modal-card" style="max-width: 620px;">
             <h2 class="modal-title">MISSION MANUAL 🤖⚡🌌</h2>
             <div class="modal-content">
-                <p><strong>Objective:</strong> Guide <strong>"Byte"</strong> the Cyber-Bot through 16 security sectors to the Quantum Stargate without getting de-rezzed by rogue security firewalls!</p>
+                <p><strong>Objective:</strong> Guide <strong>"Byte"</strong> the Cyber-Bot across 24 dangerous security sectors to defeat Rogue AI Nexus-9, rescue Dr. Maya Lin's memory shards, and reach the Quantum Stargate!</p>
                 <br>
-                <p><strong>Movement Controls:</strong></p>
+                <p><strong>Movement & Cyber-Vehicle Controls:</strong></p>
                 <ul>
-                    <li><code>A / D</code> or <code>Arrow Keys</code>: Maneuver Left / Right</li>
-                    <li><code>W / Space</code>: Jump / Thrusters</li>
+                    <li><code>A / D</code> or <code>Arrow Keys</code>: Move Left / Right (or Steer Rover)</li>
+                    <li><code>W / Space</code>: Jump (or Rover Nitro Boost / Thruster Hop)</li>
+                    <li><code>[E]</code>: <strong>Mount / Dismount Apex Cyber-Rover</strong> (near vehicle) or Chronos Slow (on foot)</li>
+                    <li><code>[U]</code>: <strong>Open Quantum Workshop</strong> to upgrade abilities with collected Nanites!</li>
+                </ul>
+                <br>
+                <p><strong>Obtainables & Progression:</strong></p>
+                <ul>
+                    <li>💎 <strong>Dr. Maya Lin's Memory Shards</strong>: 1 hidden per sector! Unlocks emotional neural diary logs of Byte's creator.</li>
+                    <li>⚡ <strong>Nanite Cores</strong>: Collect golden nanites scattered across sectors to purchase 6 branches of upgrades in the Workshop!</li>
+                    <li>🏎️ <strong>Apex Cyber-Rover</strong>: High-speed armored vehicle! Safely drives over spikes, rams breakables, and jumps across giant voids with nitro!</li>
                 </ul>
                 <br>
                 <p><strong>Quantum & Superhero Abilities:</strong></p>
                 <ul>
                     <li><code>[SHIFT] / [1]</code>: <strong>Phase Shift</strong> – Phase through holographic barriers, security drones, and plasma traps.</li>
-                    <li><code>[E] / [2]</code>: <strong>Chronos Slow</strong> – Slow down world time to 25% speed to weave through falling bulkheads and laser arrays.</li>
+                    <li><code>[E] / [2]</code>: <strong>Chronos Slow</strong> – Slow down world time to weave through falling bulkheads and lasers.</li>
                     <li><code>[Q] / [F] / [3]</code>: <strong>Polarity Invert</strong> – Walk on ceilings to bypass bottomless plasma pits.</li>
-                    <li><code>[R] / [4]</code>: <strong>Quantum Rewind</strong> – Triggered a dirty security trap? Rewind time 2.5 seconds to restore your state!</li>
-                    <li><code>[T] / [5]</code>: <strong>Cosmic Wormhole</strong> – Sub-space teleport across massive voids and break free of black hole singularities!</li>
-                    <li><code>[Z] / [6]</code>: <strong>Heat Vision 🔥</strong> – Blasts optic laser beams! Incinerate titanium blast walls, snipe sentries, and destroy fake doors from afar!</li>
-                    <li><code>[X] / [7]</code>: <strong>Aegis Shield 🛡️</strong> – Projects an invincible forcefield that absorbs and deflects 1 fatal hit from spikes, lasers, or enemies!</li>
-                    <li><code>[C] / [V] / [8]</code>: <strong>Thunder Slam 💥</strong> – Air dive at terminal velocity to shatter cracked decks into hidden vaults and stun nearby enemies!</li>
+                    <li><code>[R] / [4]</code>: <strong>Quantum Rewind</strong> – Rewind time 2.5 seconds to restore your state!</li>
+                    <li><code>[T] / [5]</code>: <strong>Cosmic Wormhole</strong> – Sub-space teleport across massive voids and singularities!</li>
+                    <li><code>[Z] / [6]</code>: <strong>Heat Vision 🔥</strong> – Blasts optic laser beams! Melts titanium blast walls and sentries!</li>
+                    <li><code>[X] / [7]</code>: <strong>Aegis Shield 🛡️</strong> – Invincible forcefield that absorbs 1 fatal hit!</li>
+                    <li><code>[C] / [V] / [8]</code>: <strong>Thunder Slam 💥</strong> – Air dive to shatter cracked decks and stun enemies!</li>
                 </ul>
             </div>
             <button id="btnCloseHelp" class="modal-btn-action">START HEIST!</button>
@@ -257,17 +393,63 @@
         </div>
     </div>
 
+    <!-- Story Theater / Cutscenes Replay Modal -->
+    <div id="storyModal" class="modal-backdrop hidden">
+        <div class="modal-card" style="max-width: 580px;">
+            <h2 class="modal-title">STORY LOGS & CINEMATICS 📖✨</h2>
+            <p style="color: var(--text-muted); font-size: 13px;">Replay unlocked chapter cinematics:</p>
+            <div id="storyListContainer" class="level-grid" style="grid-template-columns: 1fr;"></div>
+            <br>
+            <button id="btnCloseStory" class="modal-btn-action">CLOSE</button>
+        </div>
+    </div>
+
+    <!-- Quantum Tech Workshop Modal -->
+    <div id="workshopModal" class="modal-backdrop hidden">
+        <div class="modal-card workshop-modal-card">
+            <div class="workshop-header">
+                <div>
+                    <h2 class="modal-title" style="color: #ffe600;">⚡ QUANTUM WORKSHOP</h2>
+                    <p style="color: var(--text-muted); font-size: 13px;">Overclock Byte's core systems & Apex Cyber-Rover with Nanites</p>
+                </div>
+                <div class="workshop-balance">
+                    <span>CORE NANITES:</span>
+                    <strong id="workshopNaniteCount">0</strong> ⚡
+                </div>
+            </div>
+            <div id="workshopCardsContainer" class="workshop-grid"></div>
+            <br>
+            <button id="btnCloseWorkshop" class="modal-btn-action">CLOSE WORKSHOP [ESC / U]</button>
+        </div>
+    </div>
+
+    <!-- Dr. Maya's Memory Archive Modal -->
+    <div id="memoryArchiveModal" class="modal-backdrop hidden">
+        <div class="modal-card memory-modal-card">
+            <div class="memory-header">
+                <h2 class="modal-title" style="color: #00f3ff;">💎 DR. MAYA'S MEMORY ARCHIVE</h2>
+                <p style="color: var(--text-muted); font-size: 13px;">Recovered neural logs of Dr. Maya Lin before the Citadel collapse (Collect all 24 shards!)</p>
+            </div>
+            <div id="memoryArchiveGrid" class="memory-archive-grid"></div>
+            <br>
+            <button id="btnCloseMemoryArchive" class="modal-btn-action">CLOSE ARCHIVE</button>
+        </div>
+    </div>
+
     <!-- Victory Modal -->
     <div id="victoryModal" class="modal-backdrop hidden">
         <div class="modal-card">
-            <h2 class="modal-title" style="color: #00f3ff;">👑 MAINFRAME BREACHED! 👑</h2>
+            <h2 class="modal-title" style="color: #00f3ff;">👑 QUANTUM HEIST ACCOMPLISHED! 👑</h2>
             <div class="modal-content" style="text-align: center;">
-                <p>You outmaneuvered every security anomaly, runaway Stargate, and plasma grid the Rogue AI deployed!</p>
+                <p>You extracted the <strong>Chronos Heart</strong>, defeated Nexus-9, and liberated billions of synthetic beings across the Citadel!</p>
                 <br>
                 <p style="font-size: 18px; color: var(--neon-cyan); font-weight: 800;">Total De-rezzes: <span id="finalDeaths" style="color: #ff0055;">0</span></p>
                 <p style="color: var(--text-muted); font-size: 12px; margin-top: 6px;">Status: Legendary Quantum Outlaw 🏆</p>
             </div>
-            <button id="btnPlayAgain" class="modal-btn-action">RUN AGAIN 🔄</button>
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                <button id="btnWatchEpilogue" class="modal-btn-action" style="background: linear-gradient(135deg, #a855f7, #ff0055); color: #fff;">WATCH EPILOGUE 🎬</button>
+                <button id="btnPlayAgain" class="modal-btn-action">RUN AGAIN 🔄</button>
+            </div>
         </div>
     </div>
 
@@ -276,14 +458,61 @@
     <script src="textures.js?v=hero2"></script>
     <script src="renderer3d.js?v=hero2"></script>
     <script src="audio.js?v=hero2"></script>
-    <script src="levels.js?v=hero2"></script>
-    <script src="game.js?v=hero2"></script>
+    <script src="levels.js?v=story1"></script>
+    <script src="cutscenes.js?v=story1"></script>
+    <script src="hyperframes.js?v=hf1"></script>
+    <script src="video-player.js?v=vp1"></script>
+    <script src="game.js?v=story1"></script>
     <script>
         // UI Modal Interactions
         document.addEventListener('DOMContentLoaded', () => {
+            const btnOpenVideo = document.getElementById('btnOpenVideo');
+            const btnHudVideo = document.getElementById('btnHudVideo');
+
+            if (btnOpenVideo) {
+                btnOpenVideo.addEventListener('click', () => {
+                    if (window.videoPlayer) {
+                        window.videoPlayer.open(0);
+                    }
+                });
+            }
+
+            if (btnHudVideo) {
+                btnHudVideo.addEventListener('click', () => {
+                    if (window.videoPlayer) {
+                        // Jump directly to the gameplay guide (26s)
+                        window.videoPlayer.open(26);
+                    }
+                });
+            }
+
+            const btnHyperframes = document.getElementById('btnHyperframes');
+            const btnHudDirective = document.getElementById('btnHudDirective');
+
+            if (btnHyperframes) {
+                btnHyperframes.addEventListener('click', () => {
+                    if (window.hyperframeManager) {
+                        window.hyperframeManager.open(window.game ? window.game.currentLevelIndex : 0, 'directive');
+                    }
+                });
+            }
+
+            if (btnHudDirective) {
+                btnHudDirective.addEventListener('click', () => {
+                    if (window.hyperframeManager) {
+                        window.hyperframeManager.open(window.game ? window.game.currentLevelIndex : 0, 'directive');
+                    }
+                });
+            }
+
             const btnHelp = document.getElementById('btnHelp');
             const helpModal = document.getElementById('helpModal');
             const btnCloseHelp = document.getElementById('btnCloseHelp');
+
+            const btnStory = document.getElementById('btnStory');
+            const storyModal = document.getElementById('storyModal');
+            const btnCloseStory = document.getElementById('btnCloseStory');
+            const storyList = document.getElementById('storyListContainer');
 
             const btnLevelSelect = document.getElementById('btnLevelSelect');
             const levelSelectModal = document.getElementById('levelSelectModal');
@@ -295,6 +524,7 @@
 
             const victoryModal = document.getElementById('victoryModal');
             const btnPlayAgain = document.getElementById('btnPlayAgain');
+            const btnWatchEpilogue = document.getElementById('btnWatchEpilogue');
 
             // 3D stage toggle. The preference is restored on load, but only
             // after the engine exists, and it silently stays 2D if WebGL is
@@ -331,13 +561,79 @@
                 window.soundManager.playClick();
             });
 
-            btnLevelSelect.addEventListener('click', () => {
-                // Populate level list
-                levelGrid.innerHTML = '';
-                window.LEVELS.forEach((lvl, idx) => {
+            // Workshop & Memory Archive Modals
+            const btnWorkshop = document.getElementById('btnWorkshop');
+            const btnCloseWorkshop = document.getElementById('btnCloseWorkshop');
+            const btnMemories = document.getElementById('btnMemories');
+            const btnCloseMemoryArchive = document.getElementById('btnCloseMemoryArchive');
+            const btnTouchRover = document.getElementById('btnTouchRover');
+
+            if (btnWorkshop) {
+                btnWorkshop.addEventListener('click', () => {
+                    if (window.game) window.game.openWorkshop();
+                });
+            }
+            if (btnCloseWorkshop) {
+                btnCloseWorkshop.addEventListener('click', () => {
+                    if (window.game) window.game.closeWorkshop();
+                });
+            }
+            if (btnMemories) {
+                btnMemories.addEventListener('click', () => {
+                    if (window.game) window.game.openMemoryArchive();
+                });
+            }
+            if (btnCloseMemoryArchive) {
+                btnCloseMemoryArchive.addEventListener('click', () => {
+                    if (window.game) window.game.closeMemoryArchive();
+                });
+            }
+            if (btnTouchRover) {
+                btnTouchRover.addEventListener('click', () => {
+                    if (window.game) window.game.toggleVehicle();
+                });
+            }
+
+            // Story Replay Theater
+            btnStory.addEventListener('click', () => {
+                storyList.innerHTML = '';
+                const scenes = StoryManager.SCENES;
+                Object.keys(scenes).forEach(sceneKey => {
+                    const sc = scenes[sceneKey];
                     const btn = document.createElement('button');
                     btn.className = 'level-select-btn';
-                    btn.innerHTML = `<strong>Lvl ${lvl.id}:</strong> ${lvl.title}`;
+                    btn.innerHTML = `<strong>${sc.title}</strong><br><span style="font-size: 11px; color: var(--text-muted);">${sc.subtitle}</span>`;
+                    btn.onclick = () => {
+                        storyModal.classList.add('hidden');
+                        window.soundManager.playClick();
+                        window.storyManager.playCutscene(sceneKey);
+                    };
+                    storyList.appendChild(btn);
+                });
+                storyModal.classList.remove('hidden');
+                window.soundManager.playClick();
+            });
+
+            btnCloseStory.addEventListener('click', () => {
+                storyModal.classList.add('hidden');
+                window.soundManager.playClick();
+            });
+
+            btnLevelSelect.addEventListener('click', () => {
+                // Populate level list partitioned into 4 Acts
+                levelGrid.innerHTML = '';
+                let currentAct = 0;
+                window.LEVELS.forEach((lvl, idx) => {
+                    if (lvl.act && lvl.act !== currentAct) {
+                        currentAct = lvl.act;
+                        const actHeader = document.createElement('div');
+                        actHeader.className = 'act-header';
+                        actHeader.textContent = lvl.actTitle || `ACT ${currentAct}`;
+                        levelGrid.appendChild(actHeader);
+                    }
+                    const btn = document.createElement('button');
+                    btn.className = 'level-select-btn';
+                    btn.innerHTML = `<strong>Lvl ${lvl.id}:</strong> ${lvl.title.replace(/^Sector \d+:\s*/, '')}`;
                     btn.onclick = () => {
                         window.game.loadLevel(idx);
                         levelSelectModal.classList.add('hidden');
@@ -361,6 +657,12 @@
 
             btnSound.addEventListener('click', () => {
                 window.game.toggleSound();
+            });
+
+            btnWatchEpilogue.addEventListener('click', () => {
+                victoryModal.classList.add('hidden');
+                window.soundManager.playClick();
+                window.storyManager.playCutscene('epilogue');
             });
 
             btnPlayAgain.addEventListener('click', () => {

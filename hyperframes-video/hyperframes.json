@@ -1,0 +1,15 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/project.json",
+  "name": "astro-glitch-hyperframes-motion-graphics",
+  "version": "1.0.0",
+  "description": "HeyGen HyperFrames Motion Graphics Video — Cinematic Story Trailer & Gameplay Directive Guide for Astro Glitch: Quantum Heist",
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "duration": 60,
+  "entry": "index.html",
+  "audio": {
+    "sampleRate": 44100,
+    "channels": 2
+  }
+}

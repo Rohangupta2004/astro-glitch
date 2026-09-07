@@ -155,6 +155,689 @@ class Camera {
     }
 }
 
+// ==========================================================================
+// CYBER TOUCH CONTROLLER: VIRTUAL JOYSTICK & EASY POWER SYSTEM
+// ==========================================================================
+class TouchController {
+    constructor(engine) {
+        this.engine = engine;
+        this.overlay = document.getElementById('touchControlsOverlay');
+        this.isTouchActive = false;
+        this.joystickMode = 'stick';
+        this.activeDeck = 1;
+
+        // Joystick tracking
+        this.joystickPointerId = null;
+        this.joystickRadius = 46;
+        this.holdingDedicatedJump = false;
+
+        // Radial wheel tracking
+        this.radialActive = false;
+        this.radialPointerId = null;
+        this.selectedRadialPower = null;
+
+        this.initAllPowers();
+        this.initJoystick();
+        this.initDpad();
+        this.initButtons();
+        this.initRadialWheel();
+        this.checkInitialVisibility();
+    }
+
+    triggerHaptic(ms = 10) {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            try {
+                navigator.vibrate(ms);
+            } catch(e) {}
+        }
+    }
+
+    initAllPowers() {
+        this.powers = {
+            dash: {
+                id: 'dash',
+                name: 'Phase Shift',
+                shortName: 'PHASE',
+                icon: '⚡',
+                color: '#00f3ff',
+                desc: 'Phase through firewalls & hazards',
+                action: () => this.engine.triggerDash(),
+                getCooldownPct: () => Math.max(0, (this.engine.powers.dashCooldown / this.engine.powers.dashMaxCooldown) * 100),
+                isReady: () => this.engine.powers.dashCooldown <= 0
+            },
+            slowmo: {
+                id: 'slowmo',
+                name: 'Chronos Slow',
+                shortName: 'SLOW',
+                icon: '⏳',
+                color: '#ff007f',
+                desc: 'Bullet-time slow motion',
+                action: () => this.engine.toggleSlowMo(),
+                getCooldownPct: () => Math.max(0, 100 - (this.engine.powers.slowmoEnergy / this.engine.powers.slowmoMaxEnergy) * 100),
+                isReady: () => this.engine.powers.slowmoEnergy > 20
+            },
+            gravity: {
+                id: 'gravity',
+                name: 'Polarity Invert',
+                shortName: 'FLIP',
+                icon: '🚀',
+                color: '#a855f7',
+                desc: 'Flip gravity to ceiling',
+                action: () => this.engine.triggerGravityFlip(),
+                getCooldownPct: () => Math.max(0, (this.engine.powers.gravityCooldown / this.engine.powers.gravityMaxCooldown) * 100),
+                isReady: () => this.engine.powers.gravityCooldown <= 0
+            },
+            rewind: {
+                id: 'rewind',
+                name: 'Quantum Rewind',
+                shortName: 'REWIND',
+                icon: '⏪',
+                color: '#ffe600',
+                desc: 'Rewind 2.5 seconds',
+                action: () => this.engine.triggerRewind(),
+                getCooldownPct: () => Math.max(0, (this.engine.powers.rewindCooldown / this.engine.powers.rewindMaxCooldown) * 100),
+                isReady: () => this.engine.powers.rewindCooldown <= 0 && this.engine.historyBuffer.length >= 15
+            },
+            wormhole: {
+                id: 'wormhole',
+                name: 'Wormhole Warp',
+                shortName: 'WARP',
+                icon: '🌌',
+                color: '#8b5cf6',
+                desc: 'Instant quantum leap across voids',
+                action: () => this.engine.triggerWormhole(),
+                getCooldownPct: () => Math.max(0, (this.engine.powers.wormholeCooldown / this.engine.powers.wormholeMaxCooldown) * 100),
+                isReady: () => this.engine.powers.wormholeCooldown <= 0
+            },
+            laser: {
+                id: 'laser',
+                name: 'Heat Vision',
+                shortName: 'LASER',
+                icon: '🔥',
+                color: '#ff0055',
+                desc: 'Melt titanium barricades & sentries',
+                action: () => this.engine.fireHeatVision(),
+                getCooldownPct: () => Math.max(0, (this.engine.powers.heatVisionCooldown / this.engine.powers.heatVisionMaxCooldown) * 100),
+                isReady: () => this.engine.powers.heatVisionCooldown <= 0
+            },
+            shield: {
+                id: 'shield',
+                name: 'Aegis Shield',
+                shortName: 'SHIELD',
+                icon: '🛡️',
+                color: '#22d3ee',
+                desc: 'Absorb 1 fatal hazard hit',
+                action: () => this.engine.activateShield(),
+                getCooldownPct: () => Math.max(0, (this.engine.powers.shieldCooldown / this.engine.powers.shieldMaxCooldown) * 100),
+                isReady: () => this.engine.powers.shieldCooldown <= 0
+            },
+            slam: {
+                id: 'slam',
+                name: 'Thunder Slam',
+                shortName: 'SLAM',
+                icon: '💥',
+                color: '#fbbf24',
+                desc: 'Hypersonic ground pound',
+                action: () => this.engine.triggerThunderSlam(),
+                getCooldownPct: () => Math.max(0, (this.engine.powers.slamCooldown / this.engine.powers.slamMaxCooldown) * 100),
+                isReady: () => this.engine.powers.slamCooldown <= 0
+            }
+        };
+
+        this.decks = {
+            1: { name: 'QUANTUM', icon: '⚡', powers: ['dash', 'slowmo', 'gravity', 'rewind'] },
+            2: { name: 'HERO', icon: '🔥', powers: ['wormhole', 'laser', 'shield', 'slam'] }
+        };
+    }
+
+    initJoystick() {
+        const wrap = document.getElementById('virtualJoystickWrap');
+        const base = document.getElementById('joystickBase');
+        const knob = document.getElementById('joystickKnob');
+        if (!wrap || !base || !knob) return;
+
+        const updateKnob = (clientX, clientY) => {
+            const rect = base.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+
+            const dx = clientX - centerX;
+            const dy = clientY - centerY;
+            const dist = Math.hypot(dx, dy);
+            const maxR = this.joystickRadius;
+            const clampedDist = Math.min(dist, maxR);
+            const angle = Math.atan2(dy, dx);
+
+            const tx = Math.cos(angle) * clampedDist;
+            const ty = Math.sin(angle) * clampedDist;
+
+            knob.classList.remove('returning');
+            knob.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
+
+            // Normalized vectors
+            const normX = tx / maxR;
+            const normY = ty / maxR;
+
+            // Deadzone ~ 0.18
+            if (Math.abs(normX) > 0.18) {
+                this.engine.touchKeys.analogX = normX;
+                this.engine.touchKeys.left = normX < -0.22;
+                this.engine.touchKeys.right = normX > 0.22;
+            } else {
+                this.engine.touchKeys.analogX = 0;
+                this.engine.touchKeys.left = false;
+                this.engine.touchKeys.right = false;
+            }
+
+            // Upward tilt triggers jump!
+            if (normY < -0.45) {
+                this.engine.touchKeys.jump = true;
+            } else if (!this.holdingDedicatedJump) {
+                this.engine.touchKeys.jump = false;
+            }
+        };
+
+        const resetKnob = () => {
+            knob.classList.add('returning');
+            knob.style.transform = 'translate3d(0, 0, 0)';
+            base.classList.remove('active');
+            this.joystickPointerId = null;
+            this.engine.touchKeys.analogX = 0;
+            this.engine.touchKeys.left = false;
+            this.engine.touchKeys.right = false;
+            if (!this.holdingDedicatedJump) {
+                this.engine.touchKeys.jump = false;
+            }
+        };
+
+        wrap.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            window.soundManager.ensureContext();
+            this.joystickPointerId = e.pointerId;
+            try { wrap.setPointerCapture(e.pointerId); } catch(err) {}
+            base.classList.add('active');
+            this.triggerHaptic(10);
+            updateKnob(e.clientX, e.clientY);
+        });
+
+        wrap.addEventListener('pointermove', (e) => {
+            if (this.joystickPointerId !== e.pointerId) return;
+            e.preventDefault();
+            updateKnob(e.clientX, e.clientY);
+        });
+
+        wrap.addEventListener('pointerup', (e) => {
+            if (this.joystickPointerId === e.pointerId) {
+                e.preventDefault();
+                resetKnob();
+            }
+        });
+
+        wrap.addEventListener('pointercancel', (e) => {
+            if (this.joystickPointerId === e.pointerId) {
+                resetKnob();
+            }
+        });
+    }
+
+    initDpad() {
+        const bindDpad = (id, key) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            btn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                window.soundManager.ensureContext();
+                this.engine.touchKeys[key] = true;
+                this.triggerHaptic(10);
+            });
+            const end = (e) => {
+                e.preventDefault();
+                this.engine.touchKeys[key] = false;
+            };
+            btn.addEventListener('pointerup', end);
+            btn.addEventListener('pointercancel', end);
+            btn.addEventListener('pointerleave', end);
+        };
+
+        bindDpad('btnLeft', 'left');
+        bindDpad('btnRight', 'right');
+        bindDpad('btnJump', 'jump');
+    }
+
+    initButtons() {
+        // Main Jump Button
+        const jumpBtn = document.getElementById('btnTouchJump');
+        if (jumpBtn) {
+            jumpBtn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                window.soundManager.ensureContext();
+                this.holdingDedicatedJump = true;
+                if (this.engine.currentVehicle) {
+                    this.engine.touchKeys.nitro = true;
+                    this.engine.touchKeys.jump = true;
+                } else {
+                    this.engine.touchKeys.jump = true;
+                }
+                this.triggerHaptic(12);
+            });
+
+            const endJump = (e) => {
+                e.preventDefault();
+                this.holdingDedicatedJump = false;
+                this.engine.touchKeys.jump = false;
+                this.engine.touchKeys.nitro = false;
+            };
+
+            jumpBtn.addEventListener('pointerup', endJump);
+            jumpBtn.addEventListener('pointercancel', endJump);
+            jumpBtn.addEventListener('pointerleave', endJump);
+        }
+
+        // Rover Button (Mount / Dismount)
+        const roverBtn = document.getElementById('btnTouchRover');
+        if (roverBtn) {
+            roverBtn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                window.soundManager.ensureContext();
+                this.engine.toggleVehicle();
+                this.triggerHaptic(15);
+            });
+        }
+
+        // Deck Switcher Button
+        const deckBtn = document.getElementById('btnDeckSwitch');
+        if (deckBtn) {
+            deckBtn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                window.soundManager.ensureContext();
+                this.activeDeck = this.activeDeck === 1 ? 2 : 1;
+                this.applyDeck(this.activeDeck);
+                this.triggerHaptic(12);
+            });
+        }
+
+        // Mode Toggle Button (Joystick vs D-Pad)
+        const modeBtn = document.getElementById('btnToggleJoystickMode');
+        if (modeBtn) {
+            modeBtn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                window.soundManager.ensureContext();
+                this.setJoystickMode(this.joystickMode === 'stick' ? 'dpad' : 'stick');
+                this.triggerHaptic(10);
+            });
+        }
+
+        // Header Toggle Button
+        const headerToggle = document.getElementById('btnTouchToggle');
+        if (headerToggle) {
+            headerToggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.toggleTouchOverlay();
+            });
+        }
+
+        // 4 Power Buttons
+        for (let i = 1; i <= 4; i++) {
+            const btn = document.getElementById('btnPower' + i);
+            if (btn) {
+                btn.addEventListener('pointerdown', (e) => {
+                    e.preventDefault();
+                    window.soundManager.ensureContext();
+                    const pId = btn.dataset.power;
+                    if (pId && this.powers[pId]) {
+                        this.powers[pId].action();
+                        this.triggerHaptic(12);
+                    }
+                });
+            }
+        }
+
+        // Set initial deck
+        this.applyDeck(1);
+    }
+
+    initRadialWheel() {
+        const toggleBtn = document.getElementById('btnPowerWheelToggle');
+        const backdrop = document.getElementById('radialWheelBackdrop');
+        const container = document.getElementById('radialWheelContainer');
+        const closeBtn = document.getElementById('btnRadialClose');
+        const hubIcon = document.getElementById('hubIcon');
+        const hubName = document.getElementById('hubName');
+        const hubHint = document.getElementById('hubHint');
+        const nodes = document.querySelectorAll('.wheel-node');
+        if (!backdrop || !container) return;
+
+        // Set colors on nodes
+        nodes.forEach(node => {
+            const pId = node.dataset.power;
+            const p = this.powers[pId];
+            if (p) {
+                node.style.setProperty('--node-color', p.color);
+            }
+        });
+
+        const openWheel = (e) => {
+            if (e) e.preventDefault();
+            window.soundManager.ensureContext();
+            this.radialActive = true;
+            backdrop.classList.remove('hidden');
+            this.selectedRadialPower = null;
+            if (hubIcon) hubIcon.textContent = '☸️';
+            if (hubName) {
+                hubName.textContent = 'SELECT POWER';
+                hubName.style.color = 'var(--neon-cyan)';
+            }
+            if (hubHint) hubHint.textContent = 'Slide to Select • Release to Cast';
+            this.triggerHaptic(15);
+            nodes.forEach(n => n.classList.remove('active'));
+        };
+
+        const closeWheel = () => {
+            this.radialActive = false;
+            this.radialPointerId = null;
+            backdrop.classList.add('hidden');
+            nodes.forEach(n => n.classList.remove('active'));
+        };
+
+        const handleRadialDrag = (clientX, clientY) => {
+            const rect = container.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const dx = clientX - centerX;
+            const dy = clientY - centerY;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist < 32) {
+                nodes.forEach(n => n.classList.remove('active'));
+                this.selectedRadialPower = null;
+                if (hubIcon) hubIcon.textContent = '☸️';
+                if (hubName) {
+                    hubName.textContent = 'CENTER';
+                    hubName.style.color = 'var(--neon-cyan)';
+                }
+                if (hubHint) hubHint.textContent = 'Release to Cancel';
+                return;
+            }
+
+            let angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+            if (angleDeg < 0) angleDeg += 360;
+
+            let closestNode = null;
+            let minDiff = 999;
+
+            nodes.forEach(node => {
+                const nodeAngle = parseFloat(node.dataset.angle);
+                let diff = Math.abs(angleDeg - nodeAngle);
+                if (diff > 180) diff = 360 - diff;
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closestNode = node;
+                }
+            });
+
+            if (closestNode) {
+                const pId = closestNode.dataset.power;
+                const p = this.powers[pId];
+                if (p && this.selectedRadialPower !== pId) {
+                    this.selectedRadialPower = pId;
+                    this.triggerHaptic(8);
+                    nodes.forEach(n => n.classList.remove('active'));
+                    closestNode.classList.add('active');
+                    if (hubIcon) hubIcon.textContent = p.icon;
+                    if (hubName) {
+                        hubName.textContent = p.name.toUpperCase();
+                        hubName.style.color = p.color;
+                    }
+                    if (hubHint) hubHint.textContent = p.desc;
+                }
+            }
+        };
+
+        const finishRadialCast = () => {
+            if (this.selectedRadialPower && this.powers[this.selectedRadialPower]) {
+                const p = this.powers[this.selectedRadialPower];
+                p.action();
+                this.triggerHaptic(18);
+                this.engine.showBanner(`${p.icon} CAST: ${p.name.toUpperCase()}!`, 1000);
+            }
+            closeWheel();
+        };
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                this.radialPointerId = e.pointerId;
+                try { toggleBtn.setPointerCapture(e.pointerId); } catch(err) {}
+                openWheel(e);
+            });
+
+            toggleBtn.addEventListener('pointermove', (e) => {
+                if (!this.radialActive || this.radialPointerId !== e.pointerId) return;
+                handleRadialDrag(e.clientX, e.clientY);
+            });
+
+            toggleBtn.addEventListener('pointerup', (e) => {
+                if (this.radialActive && this.radialPointerId === e.pointerId) {
+                    finishRadialCast();
+                }
+            });
+        }
+
+        // Direct tap on nodes
+        nodes.forEach(node => {
+            node.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                const pId = node.dataset.power;
+                if (pId && this.powers[pId]) {
+                    this.powers[pId].action();
+                    this.triggerHaptic(18);
+                    this.engine.showBanner(`${this.powers[pId].icon} CAST: ${this.powers[pId].name.toUpperCase()}!`, 1000);
+                    closeWheel();
+                }
+            });
+        });
+
+        backdrop.addEventListener('pointermove', (e) => {
+            if (this.radialActive) {
+                handleRadialDrag(e.clientX, e.clientY);
+            }
+        });
+
+        backdrop.addEventListener('pointerup', () => {
+            if (this.radialActive) {
+                finishRadialCast();
+            }
+        });
+
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeWheel();
+            });
+        }
+    }
+
+    applyDeck(deckNum) {
+        this.activeDeck = deckNum;
+        const deck = this.decks[deckNum];
+        if (!deck) return;
+
+        const deckName = document.getElementById('deckName');
+        const deckIcon = document.getElementById('deckIcon');
+        const deckBadge = document.getElementById('deckBadge');
+
+        if (deckName) deckName.textContent = deck.name;
+        if (deckIcon) deckIcon.textContent = deck.icon;
+        if (deckBadge) deckBadge.textContent = `DECK ${deckNum}/2`;
+
+        for (let i = 0; i < 4; i++) {
+            const btn = document.getElementById('btnPower' + (i + 1));
+            const pId = deck.powers[i];
+            const p = this.powers[pId];
+            if (btn && p) {
+                btn.dataset.power = pId;
+                btn.title = p.name;
+                btn.style.setProperty('--p-color', p.color);
+                btn.style.borderColor = p.color;
+
+                const iconElem = btn.querySelector('.power-btn-icon');
+                const labelElem = btn.querySelector('.power-btn-label');
+                if (iconElem) iconElem.textContent = p.icon;
+                if (labelElem) {
+                    labelElem.textContent = p.shortName;
+                    labelElem.style.color = p.color;
+                }
+            }
+        }
+    }
+
+    onLevelLoad(featured, selected) {
+        const heroPowers = ['wormhole', 'laser', 'shield', 'slam'];
+        if (heroPowers.includes(featured)) {
+            this.activeDeck = 2;
+        } else {
+            this.activeDeck = 1;
+        }
+
+        if (selected && selected.length >= 4) {
+            if (this.activeDeck === 1) {
+                this.decks[1].powers = [...selected];
+            } else {
+                this.decks[2].powers = [...selected];
+            }
+        }
+        this.applyDeck(this.activeDeck);
+    }
+
+    applyCustomPowers(powerNames) {
+        if (!powerNames || powerNames.length < 4) return;
+        this.decks[this.activeDeck].powers = [...powerNames];
+        this.applyDeck(this.activeDeck);
+    }
+
+    setJoystickMode(mode) {
+        this.joystickMode = mode;
+        const stickWrap = document.getElementById('virtualJoystickWrap');
+        const dpadWrap = document.getElementById('retroDpadWrap');
+        const modeIcon = document.getElementById('modeIcon');
+        const modeText = document.getElementById('modeText');
+
+        if (mode === 'dpad') {
+            if (stickWrap) stickWrap.classList.add('hidden');
+            if (dpadWrap) dpadWrap.classList.remove('hidden');
+            if (modeIcon) modeIcon.textContent = '◀▶';
+            if (modeText) modeText.textContent = 'DPAD';
+        } else {
+            if (stickWrap) stickWrap.classList.remove('hidden');
+            if (dpadWrap) dpadWrap.classList.add('hidden');
+            if (modeIcon) modeIcon.textContent = '🕹️';
+            if (modeText) modeText.textContent = 'STICK';
+        }
+        try {
+            localStorage.setItem('astro_glitch_touch_mode', mode);
+        } catch(e) {}
+    }
+
+    toggleTouchOverlay(force) {
+        if (!this.overlay) return;
+        const willBeActive = force !== undefined ? force : !this.overlay.classList.contains('active');
+        this.overlay.classList.toggle('active', willBeActive);
+        this.overlay.classList.toggle('force-hidden', !willBeActive);
+
+        const btn = document.getElementById('btnTouchToggle');
+        if (btn) {
+            btn.textContent = willBeActive ? '📱 TOUCH: ON' : '📱 TOUCH: OFF';
+            btn.style.borderColor = willBeActive ? '#00ffaa' : 'rgba(255,255,255,0.3)';
+            btn.style.color = willBeActive ? '#00ffaa' : '#94a3b8';
+        }
+
+        try {
+            localStorage.setItem('astro_glitch_touch_enabled', willBeActive ? '1' : '0');
+        } catch(e) {}
+    }
+
+    checkInitialVisibility() {
+        const saved = localStorage.getItem('astro_glitch_touch_enabled');
+        const isTouchScreen = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.innerWidth <= 960);
+
+        if (saved === '1') {
+            this.toggleTouchOverlay(true);
+        } else if (saved === '0') {
+            this.toggleTouchOverlay(false);
+        } else {
+            this.toggleTouchOverlay(isTouchScreen);
+        }
+
+        const savedMode = localStorage.getItem('astro_glitch_touch_mode');
+        if (savedMode) {
+            this.setJoystickMode(savedMode);
+        }
+    }
+
+    update() {
+        if (!this.overlay) return;
+
+        // Hide overlay during story cutscenes or modals
+        const isCutsceneActive = (window.storyManager && window.storyManager.currentScene) ||
+            (window.hyperframeManager && window.hyperframeManager.isOpen) ||
+            (window.videoPlayer && window.videoPlayer.isOpen);
+        if (isCutsceneActive) {
+            this.overlay.style.opacity = '0';
+            this.overlay.style.pointerEvents = 'none';
+            return;
+        } else {
+            this.overlay.style.opacity = '1';
+            this.overlay.style.pointerEvents = '';
+        }
+
+        // Update Cooldown overlays on active power buttons
+        for (let i = 1; i <= 4; i++) {
+            const btn = document.getElementById('btnPower' + i);
+            const cd = document.getElementById('pCd' + i);
+            if (btn) {
+                const pId = btn.dataset.power;
+                const p = this.powers[pId];
+                if (p) {
+                    const cdPct = p.getCooldownPct ? p.getCooldownPct() : 0;
+                    if (cd) {
+                        cd.style.height = `${cdPct}%`;
+                    }
+                    const isReady = p.isReady ? p.isReady() : true;
+                    btn.classList.toggle('on-cooldown', !isReady);
+                }
+            }
+        }
+
+        // Update Rover & Jump Action button state
+        const roverBtn = document.getElementById('btnTouchRover');
+        const roverLabel = document.getElementById('roverBtnLabel');
+        const jumpIcon = document.getElementById('jumpBtnIcon');
+        const jumpLabel = document.getElementById('jumpBtnLabel');
+
+        if (this.engine.currentVehicle) {
+            if (roverBtn) {
+                roverBtn.classList.remove('hidden');
+                if (roverLabel) roverLabel.textContent = 'EJECT';
+            }
+            if (jumpIcon) jumpIcon.textContent = '🔥';
+            if (jumpLabel) jumpLabel.textContent = 'NITRO';
+        } else if (this.engine.isNearVehicle && this.engine.isNearVehicle()) {
+            if (roverBtn) {
+                roverBtn.classList.remove('hidden');
+                if (roverLabel) roverLabel.textContent = 'ENTER';
+            }
+            if (jumpIcon) jumpIcon.textContent = '▲';
+            if (jumpLabel) jumpLabel.textContent = 'JUMP';
+        } else {
+            if (roverBtn) {
+                roverBtn.classList.add('hidden');
+            }
+            if (jumpIcon) jumpIcon.textContent = '▲';
+            if (jumpLabel) jumpLabel.textContent = 'JUMP';
+        }
+    }
+}
+
 class GameEngine {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
@@ -272,19 +955,82 @@ class GameEngine {
         // Input state
         this.keys = {};
         this.touchKeys = {};
+        this.playedCutscenes = new Set();
 
         // Banner toast
         this.bannerText = "";
         this.bannerTimer = 0;
+
+        // Collectibles & Nanite Currency
+        this.nanites = parseInt(localStorage.getItem('astro_glitch_nanites') || '0', 10);
+        this.collectibles = [];
+
+        // Upgrades (Quantum Workshop)
+        this.upgrades = {
+            jumpThrusters: 0,
+            aegisShield: 0,
+            phaseEngine: 0,
+            vehicleDrive: 0,
+            magnetCore: 0,
+            chronoCore: 0
+        };
+        try {
+            const savedUpgrades = localStorage.getItem('astro_glitch_upgrades');
+            if (savedUpgrades) {
+                Object.assign(this.upgrades, JSON.parse(savedUpgrades));
+            }
+        } catch (e) {}
+
+        this.jumpsLeft = 1;
+        this.usedAutoShieldThisLevel = false;
+
+        // Vehicles state
+        this.vehicles = [];
+        this.currentVehicle = null;
 
         this.lastTime = 0;
         this.bindEvents();
         this.loadLevel(this.currentLevelIndex);
     }
 
+    getLevelCutsceneId(index) {
+        const map = {
+            0: 'intro',       // Sector 1: Prologue
+            6: 'act2_intro',  // Sector 7: Act II Bastion
+            12: 'act3_intro', // Sector 13: Act III Quantum Abyss
+            18: 'act4_intro', // Sector 19: Act IV Singularity Breach
+            22: 'boss_intro'  // Sector 23: Nexus-9 Core Confrontation
+        };
+        return map[index] || null;
+    }
+
     bindEvents() {
         window.addEventListener('keydown', (e) => {
             window.soundManager.ensureContext();
+
+            // Shortcut to toggle Hyperframe Directives & Comic Modal
+            if (e.code === 'KeyH') {
+                if (window.hyperframeManager) {
+                    window.hyperframeManager.toggle();
+                }
+                return;
+            }
+
+            // Shortcut to toggle HeyGen HyperFrames Motion Graphics Video Theatre
+            if (e.code === 'KeyV' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                if (window.videoPlayer) {
+                    window.videoPlayer.toggle();
+                }
+                return;
+            }
+
+            // Ignore gameplay actions while cinematic story cutscene, hyperframe modal, or video player is active
+            if ((window.storyManager && window.storyManager.currentScene) ||
+                (window.hyperframeManager && window.hyperframeManager.isOpen) ||
+                (window.videoPlayer && window.videoPlayer.isOpen)) {
+                return;
+            }
+
             this.keys[e.code] = true;
 
             // Shortcut keys for instant actions
@@ -298,7 +1044,14 @@ class GameEngine {
                 this.triggerGravityFlip();
             }
             if ((e.code === 'KeyE' || e.code === 'KeyK' || e.code === 'Digit2') && !this.isDead && !this.levelWon) {
-                this.toggleSlowMo();
+                if (e.code === 'KeyE' && (this.currentVehicle || this.isNearVehicle())) {
+                    this.toggleVehicle();
+                } else {
+                    this.toggleSlowMo();
+                }
+            }
+            if (e.code === 'KeyU') {
+                this.openWorkshop();
             }
             if ((e.code === 'KeyT' || e.code === 'Digit5') && !this.isDead && !this.levelWon) {
                 this.triggerWormhole();
@@ -329,94 +1082,42 @@ class GameEngine {
             this.keys[e.code] = false;
         });
 
-        // Touch / UI buttons
+        // Touch
         this.setupTouchControls();
     }
 
     setupTouchControls() {
-        const bindBtn = (id, actionDown, actionUp) => {
+        // Initialize modern Cyber TouchController
+        this.touchController = new TouchController(this);
+
+        // Bind legacy hidden action buttons if present
+        const bindBtn = (id, action) => {
             const btn = document.getElementById(id);
             if (!btn) return;
-            const startHandler = (e) => {
+            btn.addEventListener('pointerdown', (e) => {
                 e.preventDefault();
                 window.soundManager.ensureContext();
-                actionDown();
-            };
-            const endHandler = (e) => {
-                e.preventDefault();
-                if (actionUp) actionUp();
-            };
-            btn.addEventListener('pointerdown', startHandler);
-            btn.addEventListener('pointerup', endHandler);
-            btn.addEventListener('pointercancel', endHandler);
-            btn.addEventListener('pointerleave', endHandler);
+                action();
+            });
         };
-
-        bindBtn('btnLeft', () => { this.touchKeys.left = true; }, () => { this.touchKeys.left = false; });
-        bindBtn('btnRight', () => { this.touchKeys.right = true; }, () => { this.touchKeys.right = false; });
-        bindBtn('btnJump', () => { this.touchKeys.jump = true; }, () => { this.touchKeys.jump = false; });
 
         bindBtn('btnDash', () => { this.triggerDash(); });
         bindBtn('btnSlowmo', () => { this.toggleSlowMo(); });
         bindBtn('btnGravity', () => { this.triggerGravityFlip(); });
         bindBtn('btnRewind', () => { this.triggerRewind(); });
         bindBtn('btnWormhole', () => { this.triggerWormhole(); });
-
-        // Superhero mobile buttons
         bindBtn('btnLaser', () => { this.fireHeatVision(); });
         bindBtn('btnShield', () => { this.activateShield(); });
         bindBtn('btnSlam', () => { this.triggerThunderSlam(); });
-
-        // Mobile Power Slots (4 contextual power buttons)
-        this.setupMobilePowerSlots();
-    }
-
-    setupMobilePowerSlots() {
-        const POWER_CONFIG = {
-            dash:     { icon: '\u26a1', label: 'PHASE', action: () => this.triggerDash(),        color: '#00f3ff' },
-            slowmo:   { icon: '\u23f3', label: 'SLOW',  action: () => this.toggleSlowMo(),       color: '#ff007f' },
-            gravity:  { icon: '\ud83d\ude80', label: 'FLIP',  action: () => this.triggerGravityFlip(), color: '#a855f7' },
-            rewind:   { icon: '\u23ea', label: 'REWIND',action: () => this.triggerRewind(),       color: '#ffe600' },
-            wormhole: { icon: '\ud83c\udf0c', label: 'WARP',  action: () => this.triggerWormhole(),    color: '#8b5cf6' },
-            laser:    { icon: '\ud83d\udd25', label: 'LASER', action: () => this.fireHeatVision(),    color: '#ff0055' },
-            shield:   { icon: '\ud83d\udee1\ufe0f', label: 'SHIELD',action: () => this.activateShield(),   color: '#22d3ee' },
-            slam:     { icon: '\ud83d\udca5', label: 'SLAM',  action: () => this.triggerThunderSlam(), color: '#fbbf24' }
-        };
-
-        this.powerSlotConfig = POWER_CONFIG;
-        this.powerSlotButtons = [];
-
-        for (let i = 1; i <= 4; i++) {
-            const btn = document.getElementById('btnPower' + i);
-            if (btn) {
-                this.powerSlotButtons.push(btn);
-                btn.addEventListener('pointerdown', (e) => {
-                    e.preventDefault();
-                    window.soundManager.ensureContext();
-                    const pName = btn.dataset.power;
-                    if (pName && POWER_CONFIG[pName]) {
-                        POWER_CONFIG[pName].action();
-                    }
-                });
-            }
-        }
     }
 
     updateMobilePowerSlots(powerNames) {
-        if (!this.powerSlotButtons || this.powerSlotButtons.length < 4) return;
-        const cfg = this.powerSlotConfig;
-        for (let i = 0; i < 4; i++) {
-            const btn = this.powerSlotButtons[i];
-            const name = powerNames[i] || 'dash';
-            const p = cfg[name] || cfg.dash;
-            btn.dataset.power = name;
-            btn.title = p.label;
-            btn.innerHTML = p.icon + '<span class="power-label">' + p.label + '</span>';
-            btn.style.borderColor = p.color;
+        if (this.touchController) {
+            this.touchController.applyCustomPowers(powerNames);
         }
     }
 
-    loadLevel(index) {
+    loadLevel(index, isRespawn = false) {
         if (index < 0 || index >= window.LEVELS.length) {
             index = 0;
         }
@@ -430,16 +1131,59 @@ class GameEngine {
         this.level.trollEvents = levelData.trollEvents.map(te => ({ ...te, triggered: false }));
         this.level.enemies = (levelData.enemies || []).map(e => ({ ...e }));
 
+        // Collectibles Initialization
+        const unlockedShards = window.storyManager ? window.storyManager.unlockedShards : new Set();
+        this.collectibles = (levelData.collectibles || []).map(c => ({
+            ...c,
+            collected: c.type === 'shard' && unlockedShards.has(c.id),
+            floatTimer: Math.random() * Math.PI * 2
+        }));
+
+        // Vehicles Initialization
+        this.vehicles = (levelData.vehicles || []).map(v => ({
+            ...v,
+            vx: 0,
+            vy: 0,
+            width: 62,
+            height: 30,
+            grounded: false,
+            occupied: false,
+            nitro: 100,
+            maxNitro: 100,
+            isBoosting: false,
+            faceDir: 1,
+            wheelAngle: 0
+        }));
+        this.currentVehicle = null;
+        this.usedAutoShieldThisLevel = false;
+
         this.resetPlayerPosition();
+
+        // Apply tech upgrades
+        this.applyUpgrades();
 
         // Galactic Low-G floaty physics adaptation
         this.player.gravity = this.level.isGalactic ? 0.44 : 0.58;
-        this.player.jumpForce = this.level.isGalactic ? 12.0 : 11.5;
+        if (this.upgrades.jumpThrusters < 1) {
+            this.player.jumpForce = this.level.isGalactic ? 12.0 : 11.5;
+        }
+
+        // Auto-mount vehicle if highway chase level
+        if (this.vehicles.length > 0 && ['Sector 05: Neon Highway Chase', 'Sector 11: Bastion Sky-Freeway', 'Sector 17: Singularity Run', 'Sector 24: Grand Cosmic Escape'].includes(this.level.title)) {
+            const v = this.vehicles[0];
+            v.occupied = true;
+            this.currentVehicle = v;
+            this.player.x = v.x + v.width / 2 - this.player.width / 2;
+            this.player.y = v.y + 4;
+        }
 
         this.historyBuffer = [];
         this.particles.clear();
         this.isDead = false;
         this.levelWon = false;
+        if (!isRespawn) {
+            this.deaths = 0;
+        }
         this.powers.slowmoActive = false;
         this.powers.isRewinding = false;
 
@@ -460,6 +1204,16 @@ class GameEngine {
 
         // Update mobile power slots based on level's featured powers
         this.setLevelPowerSlots();
+
+        // Story Cutscene Trigger (if entering sector freshly, not on respawn)
+        if (!isRespawn && window.storyManager) {
+            const sceneId = this.level.cutscene || this.getLevelCutsceneId(index);
+            if (sceneId && !this.playedCutscenes.has(sceneId)) {
+                this.playedCutscenes.add(sceneId);
+                this.keys = {};
+                window.storyManager.playCutscene(sceneId);
+            }
+        }
     }
 
     setLevelPowerSlots() {
@@ -479,7 +1233,11 @@ class GameEngine {
             if (!selected.includes(p)) selected.push(p);
         }
         while (selected.length < 4) selected.push('dash');
-        this.updateMobilePowerSlots(selected);
+        if (this.touchController) {
+            this.touchController.onLevelLoad(featured, selected);
+        } else {
+            this.updateMobilePowerSlots(selected);
+        }
     }
 
     resetPlayerPosition() {
@@ -653,6 +1411,17 @@ class GameEngine {
                 this.showBanner("FAKE DOOR INCINERATED FROM AFAR! 🔥🚪", 1400);
             }
         }
+
+        // 5. Boss Nexus-9 Core (Sector 23)
+        if (this.level && this.level.boss && this.level.boss.state !== 'defeated') {
+            const b = this.level.boss;
+            const by = b.currentY || b.y;
+            const inY = Math.abs(by - startY) < (b.radius + 35);
+            const inX = dir > 0 ? (b.x >= startX - 20 && b.x <= endX) : (b.x <= startX + 20 && b.x >= endX);
+            if (inY && inX) {
+                this.hitBoss(1);
+            }
+        }
     }
 
     activateShield() {
@@ -688,6 +1457,13 @@ class GameEngine {
     // --- GAME LOOP & UPDATES ---
 
     update(dt) {
+        if ((window.storyManager && window.storyManager.currentScene) ||
+            (window.hyperframeManager && window.hyperframeManager.isOpen) ||
+            (window.videoPlayer && window.videoPlayer.isOpen)) {
+            // Gameplay paused during story cutscenes, Hyperframe directives, or Video Theatre
+            return;
+        }
+
         this.camera.update();
         this.particles.update(dt);
 
@@ -700,9 +1476,17 @@ class GameEngine {
             this.winTimer--;
             if (this.winTimer <= 0) {
                 if (this.currentLevelIndex + 1 < window.LEVELS.length) {
-                    this.loadLevel(this.currentLevelIndex + 1);
+                    this.loadLevel(this.currentLevelIndex + 1, false);
                 } else {
-                    this.showVictoryModal();
+                    // All 24 sectors cleared! Play Grand Finale Epilogue
+                    if (window.storyManager && StoryManager.SCENES['epilogue'] && !this.playedCutscenes.has('epilogue')) {
+                        this.playedCutscenes.add('epilogue');
+                        window.storyManager.playCutscene('epilogue', () => {
+                            this.showVictoryModal();
+                        });
+                    } else {
+                        this.showVictoryModal();
+                    }
                 }
             }
             return;
@@ -712,7 +1496,7 @@ class GameEngine {
         if (this.isDead) {
             this.respawnTimer--;
             if (this.respawnTimer <= 0) {
-                this.loadLevel(this.currentLevelIndex);
+                this.loadLevel(this.currentLevelIndex, true);
             }
             return;
         }
@@ -782,6 +1566,15 @@ class GameEngine {
                     }
                 }
             }
+
+            // Check boss proximity for slam shockwave
+            if (this.level && this.level.boss && this.level.boss.state !== 'defeated') {
+                const b = this.level.boss;
+                const dist = Math.hypot(b.x - this.player.x, (b.currentY || b.y) - this.player.y);
+                if (dist < 260) {
+                    this.hitBoss(1);
+                }
+            }
         }
 
         // Update Stars for Galactic Parallax
@@ -825,8 +1618,15 @@ class GameEngine {
         // Record history snapshot for Quantum Rewind
         this.recordHistory();
 
-        // Update player movement & physics
-        this.updatePlayer(timeScale);
+        // Update player / vehicle movement & physics
+        if (this.currentVehicle) {
+            this.updateVehicle(timeScale);
+        } else {
+            this.updatePlayer(timeScale);
+        }
+
+        // Update Collectibles (Memory Shards & Nanite Cores)
+        this.updateCollectibles(timeScale);
 
         // Update dynamic level entities (moving platforms, collapsing blocks, fleeing doors)
         this.updateLevelEntities(timeScale);
@@ -839,6 +1639,11 @@ class GameEngine {
 
         // Update HUD
         this.updateHUD();
+
+        // Update Cyber Touch Controller (cooldowns & vehicle states)
+        if (this.touchController) {
+            this.touchController.update();
+        }
     }
 
     recordHistory() {
@@ -916,8 +1721,12 @@ class GameEngine {
         const rightPressed = this.keys['KeyD'] || this.keys['ArrowRight'] || this.touchKeys.right;
         const jumpPressed = this.keys['KeyW'] || this.keys['ArrowUp'] || this.keys['Space'] || this.touchKeys.jump;
 
-        if (leftPressed) moveX -= 1;
-        if (rightPressed) moveX += 1;
+        if (this.touchKeys.analogX !== undefined && Math.abs(this.touchKeys.analogX) > 0.18) {
+            moveX = this.touchKeys.analogX;
+        } else {
+            if (leftPressed) moveX -= 1;
+            if (rightPressed) moveX += 1;
+        }
 
         if (p.controlsInverted && !p.isPhasing) {
             moveX *= -1;
@@ -1202,6 +2011,64 @@ class GameEngine {
                 }
             }
         }
+
+        // Update Boss (Sector 23 Nexus-9 Core)
+        this.updateBoss(timeScale);
+    }
+
+    hitBoss(damage = 1) {
+        if (!this.level || !this.level.boss || this.level.boss.state === 'defeated') return;
+        const b = this.level.boss;
+        b.hp -= damage;
+        this.camera.shake(18, 25);
+        if (window.soundManager) window.soundManager.playTroll();
+        this.particles.createDeathBurst(b.x, b.y, '#ff0055');
+        this.particles.createSparks(b.x, b.y, '#ffe600', 25, 2.5);
+
+        if (b.hp <= 0) {
+            b.state = 'defeated';
+            b.hp = 0;
+            if (this.level.door) {
+                this.level.door.isBossCoreDoor = false; // Unlocks door!
+            }
+            this.particles.createConfetti(b.x, b.y);
+            this.camera.shake(25, 35);
+            this.showBanner("NEXUS-9 CORE DESTROYED! CHRONOS HEART EXPOSED! 👑⚡", 3500);
+            if (window.storyManager) {
+                window.storyManager.triggerRadio('nexus', "CRITICAL FAILURE... MAINFRAME COLLAPSE INEVITABLE...", 4000);
+                setTimeout(() => {
+                    if (window.storyManager) {
+                        window.storyManager.triggerRadio('aura', "The Stargate is unlocked! Grab the Chronos Heart and get out!", 4000);
+                    }
+                }, 4200);
+            }
+        } else {
+            this.showBanner(`NEXUS-9 OPTIC DAMAGED! [HP: ${b.hp}/${b.maxHp}] 🔥`, 1500);
+            if (window.storyManager) {
+                window.storyManager.triggerRadio('nexus', "INSOLENT TOASTER! CORE DEFENSES ACCELERATING!");
+            }
+        }
+    }
+
+    updateBoss(timeScale) {
+        if (!this.level || !this.level.boss) return;
+        const b = this.level.boss;
+        if (b.state === 'defeated') {
+            if (Math.random() < 0.15) {
+                this.particles.createSparks(b.x + (Math.random() * 60 - 30), b.y + (Math.random() * 40 - 20), '#ff3300', 2, 1.0);
+            }
+            return;
+        }
+
+        b.hoverTimer = (b.hoverTimer || 0) + 0.04 * timeScale;
+        b.currentY = b.y + Math.sin(b.hoverTimer) * 12;
+
+        b.attackTimer = (b.attackTimer || 0) + timeScale;
+        if (b.attackTimer >= 200) {
+            b.attackTimer = 0;
+            this.particles.createSparks(b.x, b.currentY + b.radius, '#ff0055', 18, 2.0);
+            if (window.soundManager) window.soundManager.playLaser();
+        }
     }
 
     checkTrollTriggers() {
@@ -1303,6 +2170,10 @@ class GameEngine {
                 this.killPlayer("That door was an impostor!");
                 return;
             }
+            if (this.level.door.isBossCoreDoor && this.level.boss && this.level.boss.hp > 0) {
+                this.showBanner("CORE DOOR LOCKED! DEFEAT NEXUS-9 FIRST! 🔒", 900);
+                return;
+            }
             this.winLevel();
             return;
         }
@@ -1316,6 +2187,24 @@ class GameEngine {
     killPlayer(customReason = null) {
         if (this.isDead || this.levelWon) return;
 
+        // Auto-Shield Emergency Matrix (Aegis Shield Tier 3 Upgrade)
+        if (this.upgrades && this.upgrades.aegisShield >= 3 && !this.usedAutoShieldThisLevel) {
+            this.usedAutoShieldThisLevel = true;
+            this.activateShield();
+            this.player.vy = -8 * this.player.gravityDir;
+            window.soundManager.playShieldDeflect();
+            this.particles.createSparks(this.player.x + 14, this.player.y + 14, '#00ffcc', 30, 2.5);
+            this.showBanner("EMERGENCY AUTO-SHIELD MATRIX ENGAGED! 🛡️⚡", 2000);
+            return;
+        }
+
+        // If inside vehicle, eject
+        if (this.currentVehicle) {
+            const v = this.currentVehicle;
+            v.occupied = false;
+            this.currentVehicle = null;
+        }
+
         this.isDead = true;
         this.deaths++;
         this.totalDeaths++;
@@ -1327,6 +2216,15 @@ class GameEngine {
 
         const quote = customReason || window.TROLL_DEATH_QUOTES[Math.floor(Math.random() * window.TROLL_DEATH_QUOTES.length)];
         this.showDeathOverlay(quote);
+
+        // Contextual Hyperframe Tactical Assistance if struggling (2+ deaths)
+        if (this.deaths === 2 && window.hyperframeManager && typeof HyperframeManager !== 'undefined') {
+            const dir = HyperframeManager.SECTOR_DIRECTIVES[this.currentLevelIndex];
+            const pHint = dir && dir.recommendedPowers && dir.recommendedPowers[0]
+                ? `Tactical tip: Try [${dir.recommendedPowers[0].key}] ${dir.recommendedPowers[0].name}!`
+                : 'Need help? Check your tactical directives!';
+            window.hyperframeManager.triggerComms('aura', `${pHint} Press [H] for full sector guide!`, 4800, false);
+        }
     }
 
     winLevel() {
@@ -1392,8 +2290,9 @@ class GameEngine {
         const hintElem = document.getElementById('hudHint');
 
         if (lvlTitle) lvlTitle.textContent = this.level ? this.level.title : "";
-        if (lvlNum) lvlNum.textContent = `LEVEL ${this.currentLevelIndex + 1}/${window.LEVELS.length}`;
-        if (deathCount) deathCount.textContent = `DEATHS: ${this.totalDeaths}`;
+        const actPrefix = this.level && this.level.act ? `ACT ${this.level.act} // ` : "";
+        if (lvlNum) lvlNum.textContent = `${actPrefix}SECTOR ${this.currentLevelIndex + 1}/${window.LEVELS.length}`;
+        if (deathCount) deathCount.textContent = `DE-REZZED: ${this.totalDeaths}`;
         if (hintElem && this.level) hintElem.textContent = this.level.hint || "";
 
         // Superpower Meters
@@ -1437,6 +2336,17 @@ class GameEngine {
         const rewindBtn = document.getElementById('btnRewind');
         if (rewindBtn) {
             rewindBtn.classList.toggle('disabled', this.powers.rewindCooldown > 0 || this.historyBuffer.length < 15);
+        }
+
+        // Shards & Nanites Badges
+        const hudShards = document.getElementById('hudShards');
+        if (hudShards) {
+            const unlocked = window.storyManager ? window.storyManager.unlockedShards.size : 0;
+            hudShards.textContent = `💎 ${unlocked}/24 SHARDS`;
+        }
+        const hudNanites = document.getElementById('hudNanites');
+        if (hudNanites) {
+            hudNanites.textContent = `⚡ ${this.nanites} NANITES`;
         }
     }
 
@@ -1504,6 +2414,12 @@ class GameEngine {
         // Draw Platforms
         this.renderPlatforms(ctx);
 
+        // Draw Collectibles (Memory Shards & Nanite Cores)
+        this.renderCollectibles(ctx);
+
+        // Draw Vehicles (Apex Cyber-Rover)
+        this.renderVehicles(ctx);
+
         // Draw Spikes
         this.renderSpikes(ctx);
 
@@ -1516,9 +2432,14 @@ class GameEngine {
         // Draw Enemies (Smolly Villain & Ghost)
         this.renderEnemies(ctx);
 
-        // Draw Player (if alive)
+        // Draw Boss (Sector 23 Nexus-9 Core)
+        this.renderBoss(ctx);
+
+        // Draw Player (if alive and on foot)
         if (!this.isDead) {
-            this.renderPlayer(ctx);
+            if (!this.currentVehicle) {
+                this.renderPlayer(ctx);
+            }
 
             // Draw Superhero Effects
             if (this.powers.heatVisionTimer > 0) {
@@ -2148,6 +3069,134 @@ class GameEngine {
         }
     }
 
+    renderBoss(ctx) {
+        if (!this.level || !this.level.boss) return;
+        const b = this.level.boss;
+        const bx = b.x;
+        const by = b.currentY || b.y;
+        const rad = b.radius || 54;
+        const p = this.player;
+
+        ctx.save();
+
+        if (b.state === 'defeated') {
+            // Broken, smoking mainframe core
+            ctx.fillStyle = '#150810';
+            ctx.strokeStyle = '#441122';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(bx, by, rad, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Deactivated eye slit
+            ctx.strokeStyle = '#220008';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(bx - 30, by);
+            ctx.lineTo(bx + 30, by);
+            ctx.stroke();
+
+            // Debris label
+            ctx.fillStyle = '#666';
+            ctx.font = '11px "Space Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText("NEXUS-9 [OFFLINE]", bx, by + rad + 20);
+            ctx.restore();
+            return;
+        }
+
+        // 1. Ominous Outer Glow
+        ctx.shadowColor = '#ff0055';
+        ctx.shadowBlur = 24;
+
+        // 2. Rotating Aperture Blades / Citadel Chassis
+        const rot = (Date.now() * 0.001) % (Math.PI * 2);
+        ctx.strokeStyle = '#ff0055';
+        ctx.lineWidth = 4;
+        ctx.fillStyle = '#0f050b';
+        ctx.beginPath();
+        ctx.arc(bx, by, rad, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Mechanical aperture spokes
+        ctx.save();
+        ctx.translate(bx, by);
+        ctx.rotate(rot);
+        ctx.strokeStyle = 'rgba(255, 0, 85, 0.6)';
+        ctx.lineWidth = 3;
+        for (let a = 0; a < 6; a++) {
+            const angle = (a * Math.PI) / 3;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(angle) * (rad * 0.5), Math.sin(angle) * (rad * 0.5));
+            ctx.lineTo(Math.cos(angle) * rad, Math.sin(angle) * rad);
+            ctx.stroke();
+        }
+        ctx.restore();
+
+        // 3. Inner Crimson Glitch Core
+        const coreGrad = ctx.createRadialGradient(bx, by, 4, bx, by, rad * 0.65);
+        coreGrad.addColorStop(0, '#ffffff');
+        coreGrad.addColorStop(0.2, '#ff0055');
+        coreGrad.addColorStop(0.7, '#880022');
+        coreGrad.addColorStop(1, '#110006');
+        ctx.fillStyle = coreGrad;
+        ctx.beginPath();
+        ctx.arc(bx, by, rad * 0.65, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 4. Tracking Pupil looking at Player
+        const angleToPlayer = Math.atan2(p.y - by, p.x - bx);
+        const pupilDist = Math.min(18, Math.hypot(p.x - bx, p.y - by) * 0.05);
+        const pupilX = bx + Math.cos(angleToPlayer) * pupilDist;
+        const pupilY = by + Math.sin(angleToPlayer) * pupilDist;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(pupilX, pupilY, 9, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 5. Boss Health Bar (Top Center Screen HUD)
+        ctx.restore();
+        ctx.save();
+        const barW = 260;
+        const barH = 14;
+        const barX = bx - barW / 2;
+        const barY = by - rad - 30;
+
+        // Label
+        ctx.fillStyle = '#ff0055';
+        ctx.font = 'bold 12px "Space Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText("NEXUS-9 // CENTRAL HIVE EYE", bx, barY - 6);
+
+        // Bar background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.strokeStyle = '#ff0055';
+        ctx.lineWidth = 1.5;
+        ctx.fillRect(barX, barY, barW, barH);
+        ctx.strokeRect(barX, barY, barW, barH);
+
+        // Health Segments
+        const segmentW = (barW - 6) / b.maxHp;
+        for (let i = 0; i < b.maxHp; i++) {
+            if (i < b.hp) {
+                ctx.fillStyle = '#ff0055';
+                ctx.shadowColor = '#ff0055';
+                ctx.shadowBlur = 8;
+            } else {
+                ctx.fillStyle = '#33111a';
+                ctx.shadowBlur = 0;
+            }
+            ctx.fillRect(barX + 3 + i * segmentW, barY + 2, segmentW - 3, barH - 4);
+        }
+
+        ctx.restore();
+    }
+
     renderPlayer(ctx) {
         const p = this.player;
         ctx.save();
@@ -2412,6 +3461,673 @@ class GameEngine {
         ctx.stroke();
 
         ctx.restore();
+    }
+
+    isNearVehicle() {
+        if (!this.vehicles) return false;
+        for (const v of this.vehicles) {
+            const dist = Math.hypot((v.x + v.width / 2) - (this.player.x + this.player.width / 2), (v.y + v.height / 2) - (this.player.y + this.player.height / 2));
+            if (dist < 75) return true;
+        }
+        return false;
+    }
+
+    toggleVehicle() {
+        if (this.currentVehicle) {
+            // Eject Byte out of vehicle!
+            const v = this.currentVehicle;
+            this.player.x = v.x + v.width / 2 - this.player.width / 2;
+            this.player.y = v.y - this.player.height - 8;
+            this.player.vy = -11.5;
+            this.player.vx = v.vx * 0.75;
+            v.occupied = false;
+            this.currentVehicle = null;
+            if (window.soundManager) window.soundManager.playJump();
+            this.showBanner("DISMOUNTED APEX ROVER! 💨", 1200);
+            return;
+        }
+
+        if (!this.vehicles) return;
+        for (const v of this.vehicles) {
+            const dist = Math.hypot((v.x + v.width / 2) - (this.player.x + this.player.width / 2), (v.y + v.height / 2) - (this.player.y + this.player.height / 2));
+            if (dist < 75) {
+                v.occupied = true;
+                this.currentVehicle = v;
+                if (window.soundManager) window.soundManager.playVehicleBoost();
+                this.showBanner("APEX ROVER MOUNTED! 🏎️⚡ [SPACE] NITRO // [E] EJECT", 2200);
+                return;
+            }
+        }
+    }
+
+    updateVehicle(timeScale) {
+        const v = this.currentVehicle;
+        if (!v) return;
+
+        // Steering & Throttle
+        let moveX = 0;
+        const leftPressed = this.keys['KeyA'] || this.keys['ArrowLeft'] || this.touchKeys.left;
+        const rightPressed = this.keys['KeyD'] || this.keys['ArrowRight'] || this.touchKeys.right;
+        const boostPressed = this.keys['Space'] || this.keys['ShiftLeft'] || this.touchKeys.nitro;
+        const jumpPressed = this.keys['KeyW'] || this.keys['ArrowUp'] || this.touchKeys.jump;
+
+        if (this.touchKeys.analogX !== undefined && Math.abs(this.touchKeys.analogX) > 0.18) {
+            moveX = this.touchKeys.analogX;
+        } else {
+            if (leftPressed) moveX -= 1;
+            if (rightPressed) moveX += 1;
+        }
+
+        // Acceleration & Top Speed (Upgraded with vehicleDrive)
+        const boostMult = v.isBoosting ? 1.55 : 1.0;
+        const maxSpd = (9.5 + (this.upgrades.vehicleDrive >= 1 ? 3.5 : 0)) * boostMult;
+
+        if (moveX !== 0) {
+            v.faceDir = moveX > 0 ? 1 : -1;
+            v.vx += moveX * 0.75 * timeScale;
+            v.vx = Math.max(-maxSpd, Math.min(maxSpd, v.vx));
+        } else {
+            v.vx *= 0.94; // Drift friction
+        }
+
+        // Nitro Boost
+        if (boostPressed && v.nitro > 4) {
+            v.isBoosting = true;
+            v.nitro -= (this.upgrades.vehicleDrive >= 2 ? 0.6 : 1.2);
+            this.particles.createSparks(v.faceDir > 0 ? v.x : v.x + v.width, v.y + 16, '#00f3ff', 2, 1.5);
+            this.particles.createSparks(v.faceDir > 0 ? v.x : v.x + v.width, v.y + 16, '#ff007f', 1, 2.0);
+            if (Math.random() < 0.2 && window.soundManager) {
+                window.soundManager.playVehicleBoost();
+                this.camera.shake(3, 5);
+            }
+        } else {
+            v.isBoosting = false;
+            v.nitro = Math.min(v.maxNitro, v.nitro + 0.4);
+        }
+
+        // Suspension Hop / Jump
+        if (jumpPressed && v.grounded) {
+            v.vy = -12.5;
+            v.grounded = false;
+            if (window.soundManager) window.soundManager.playVehicleJump();
+            this.camera.shake(5, 8);
+        }
+
+        // Gravity
+        v.vy += 0.58 * timeScale;
+        v.vy = Math.max(-16, Math.min(16, v.vy));
+
+        // Wheel rotation
+        v.wheelAngle += v.vx * 0.08;
+
+        // Platform collision
+        v.grounded = false;
+        const nextX = v.x + v.vx * timeScale;
+        const nextY = v.y + v.vy * timeScale;
+
+        // Horizontal collision
+        v.x = nextX;
+        if (this.level && this.level.platforms) {
+            for (const plat of this.level.platforms) {
+                if (plat.opacity === 0) continue;
+                if (this.checkAABB(v, plat)) {
+                    // Ram breakable / barrier blocks!
+                    if ((plat.type === 'destructible' || plat.type === 'barrier' || plat.type === 'cracked') && Math.abs(v.vx) > 3) {
+                        plat.isBroken = true;
+                        plat.opacity = 0;
+                        this.particles.createSparks(plat.x + plat.width / 2, plat.y + plat.height / 2, '#ffaa00', 20, 2.5);
+                        if (window.soundManager) window.soundManager.playVehicleRam();
+                        this.camera.shake(10, 15);
+                        continue;
+                    }
+                    if (v.vx > 0) v.x = plat.x - v.width;
+                    else if (v.vx < 0) v.x = plat.x + plat.width;
+                    v.vx = 0;
+                }
+            }
+        }
+
+        // Vertical collision
+        v.y = nextY;
+        if (this.level && this.level.platforms) {
+            for (const plat of this.level.platforms) {
+                if (plat.opacity === 0) continue;
+                if (this.checkAABB(v, plat)) {
+                    if (v.vy > 0) { // Landing
+                        v.y = plat.y - v.height;
+                        v.vy = 0;
+                        v.grounded = true;
+                        if (plat.type === 'collapse' && !plat.isTriggered) {
+                            plat.isTriggered = true;
+                            plat.timer = plat.delay || 120;
+                        }
+                    } else if (v.vy < 0) {
+                        v.y = plat.y + plat.height;
+                        v.vy = 0;
+                    }
+                }
+            }
+        }
+
+        // Road Ramming Spikes & Enemies
+        if (this.level && this.level.spikes) {
+            for (const spike of this.level.spikes) {
+                if (spike.isHidden) continue;
+                if (this.checkAABB(v, spike)) {
+                    // Heavily armored rover rolls over spikes safely!
+                    this.particles.createSparks(v.x + v.width / 2, v.y + v.height, '#ffe600', 3);
+                }
+            }
+        }
+
+        if (this.level && this.level.enemies) {
+            for (let i = this.level.enemies.length - 1; i >= 0; i--) {
+                const en = this.level.enemies[i];
+                if (this.checkAABB(v, en)) {
+                    // Ram enemy!
+                    this.particles.createDeathBurst(en.x + en.width / 2, en.y + en.height / 2, '#ff0055');
+                    if (window.soundManager) window.soundManager.playVehicleRam();
+                    this.camera.shake(8, 14);
+                    this.level.enemies.splice(i, 1);
+                }
+            }
+        }
+
+        // Sync player position to rover cockpit
+        this.player.x = v.x + v.width / 2 - this.player.width / 2;
+        this.player.y = v.y + 4;
+        this.player.vx = v.vx;
+        this.player.vy = v.vy;
+        this.player.grounded = v.grounded;
+        this.player.faceDir = v.faceDir;
+
+        // Pit death
+        if (v.y > this.height + 80) {
+            this.killPlayer("Apex Rover plunged into the abyss!");
+        }
+    }
+
+    updateCollectibles(timeScale) {
+        if (!this.collectibles) return;
+
+        const p = this.player;
+        const px = p.x + p.width / 2;
+        const py = p.y + p.height / 2;
+
+        const magnetRadius = this.upgrades.magnetCore >= 2 ? 360 : (this.upgrades.magnetCore >= 1 ? 160 : 0);
+
+        for (const c of this.collectibles) {
+            if (c.collected) continue;
+
+            c.floatTimer = (c.floatTimer || 0) + 0.05 * timeScale;
+
+            // Magnet pull for nanites
+            if (c.type === 'nanite' && magnetRadius > 0) {
+                const dist = Math.hypot(px - c.x, py - c.y);
+                if (dist < magnetRadius) {
+                    const angle = Math.atan2(py - c.y, px - c.x);
+                    const pullSpeed = (1 - dist / magnetRadius) * 8.5 * timeScale;
+                    c.x += Math.cos(angle) * pullSpeed;
+                    c.y += Math.sin(angle) * pullSpeed;
+                }
+            }
+
+            // Pickup detection
+            const pickupDist = Math.hypot(px - c.x, py - c.y);
+            if (pickupDist < 30 || this.checkAABB(p, { x: c.x - 12, y: c.y - 12, width: 24, height: 24 })) {
+                c.collected = true;
+
+                if (c.type === 'shard') {
+                    this.particles.createSparks(c.x, c.y, '#ffe600', 25, 2.0);
+                    this.particles.createSparks(c.x, c.y, '#00f3ff', 20, 2.5);
+                    if (window.storyManager) {
+                        window.storyManager.showMemoryFragment(c.id);
+                    }
+                } else if (c.type === 'nanite') {
+                    this.nanites += 15;
+                    localStorage.setItem('astro_glitch_nanites', this.nanites);
+                    this.particles.createSparks(c.x, c.y, '#00f3ff', 12, 1.6);
+                    if (window.soundManager) window.soundManager.playCollectNanite();
+                    this.showBanner(`+15 NANITES! ⚡ (TOTAL: ${this.nanites})`, 1200);
+                }
+                this.updateHUD();
+            }
+        }
+    }
+
+    renderVehicles(ctx) {
+        if (!this.vehicles) return;
+        for (const v of this.vehicles) {
+            ctx.save();
+            const vx = v.x;
+            const vy = v.y;
+            const vw = v.width;
+            const vh = v.height;
+            const dir = v.faceDir || 1;
+
+            // 1. Vehicle Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+            ctx.beginPath();
+            ctx.ellipse(vx + vw / 2, vy + vh + 4, vw * 0.5, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 2. Wheels
+            const wheelR = 9;
+            const wheelY = vy + vh - 2;
+            const wheel1X = vx + 14;
+            const wheel2X = vx + vw - 14;
+
+            [wheel1X, wheel2X].forEach(wx => {
+                ctx.save();
+                ctx.translate(wx, wheelY);
+                ctx.rotate(v.wheelAngle || 0);
+
+                ctx.fillStyle = '#0f172a';
+                ctx.strokeStyle = '#00f3ff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, wheelR, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.strokeStyle = '#ffe600';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(-wheelR + 2, 0);
+                ctx.lineTo(wheelR - 2, 0);
+                ctx.moveTo(0, -wheelR + 2);
+                ctx.lineTo(0, wheelR - 2);
+                ctx.stroke();
+
+                ctx.restore();
+            });
+
+            // 3. Chassis
+            ctx.shadowColor = '#00f3ff';
+            ctx.shadowBlur = v.isBoosting ? 20 : 8;
+
+            const bodyGrad = ctx.createLinearGradient(vx, vy, vx + vw, vy + vh);
+            bodyGrad.addColorStop(0, '#0a192f');
+            bodyGrad.addColorStop(0.5, '#1e293b');
+            bodyGrad.addColorStop(1, '#0f172a');
+
+            ctx.fillStyle = bodyGrad;
+            ctx.strokeStyle = v.isBoosting ? '#ffe600' : '#00f3ff';
+            ctx.lineWidth = 2.5;
+
+            ctx.beginPath();
+            if (dir > 0) {
+                ctx.moveTo(vx + 4, vy + 12);
+                ctx.lineTo(vx + 20, vy + 4);
+                ctx.lineTo(vx + vw - 16, vy + 4);
+                ctx.lineTo(vx + vw, vy + 16);
+                ctx.lineTo(vx + vw, vy + vh - 6);
+                ctx.lineTo(vx, vy + vh - 6);
+            } else {
+                ctx.moveTo(vx + vw - 4, vy + 12);
+                ctx.lineTo(vx + vw - 20, vy + 4);
+                ctx.lineTo(vx + 16, vy + 4);
+                ctx.lineTo(vx, vy + 16);
+                ctx.lineTo(vx, vy + vh - 6);
+                ctx.lineTo(vx + vw, vy + vh - 6);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // 4. Tinted Canopy
+            ctx.fillStyle = 'rgba(0, 243, 255, 0.35)';
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            const cx1 = dir > 0 ? vx + 22 : vx + vw - 36;
+            const cx2 = dir > 0 ? vx + vw - 22 : vx + 22;
+            ctx.moveTo(cx1, vy + 6);
+            ctx.lineTo(cx2, vy + 6);
+            ctx.lineTo(dir > 0 ? vx + vw - 18 : vx + 18, vy + 15);
+            ctx.lineTo(dir > 0 ? vx + 18 : vx + vw - 18, vy + 15);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // 5. If occupied, show Byte's eyes
+            if (v.occupied) {
+                ctx.fillStyle = '#00f3ff';
+                ctx.shadowColor = '#00f3ff';
+                ctx.shadowBlur = 10;
+                const eyeX = dir > 0 ? vx + vw / 2 + 2 : vx + vw / 2 - 8;
+                ctx.fillRect(eyeX, vy + 8, 4, 4);
+                ctx.fillRect(eyeX + 6, vy + 8, 4, 4);
+            }
+
+            // 6. Exhaust Flame
+            if (v.isBoosting || Math.abs(v.vx) > 3) {
+                const exX = dir > 0 ? vx - 2 : vx + vw + 2;
+                const flameLen = v.isBoosting ? 26 + Math.random() * 12 : 10 + Math.random() * 6;
+                ctx.fillStyle = v.isBoosting ? '#ff007f' : '#00f3ff';
+                ctx.shadowColor = v.isBoosting ? '#ff007f' : '#00f3ff';
+                ctx.shadowBlur = 15;
+                ctx.beginPath();
+                ctx.moveTo(exX, vy + 12);
+                ctx.lineTo(dir > 0 ? exX - flameLen : exX + flameLen, vy + 16);
+                ctx.lineTo(exX, vy + 20);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.moveTo(exX, vy + 14);
+                ctx.lineTo(dir > 0 ? exX - flameLen * 0.5 : exX + flameLen * 0.5, vy + 16);
+                ctx.lineTo(exX, vy + 18);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // 7. Headlight Beam
+            const hx = dir > 0 ? vx + vw : vx;
+            ctx.save();
+            const lightGrad = ctx.createLinearGradient(hx, vy + 14, dir > 0 ? hx + 120 : hx - 120, vy + 14);
+            lightGrad.addColorStop(0, 'rgba(0, 243, 255, 0.4)');
+            lightGrad.addColorStop(1, 'rgba(0, 243, 255, 0)');
+            ctx.fillStyle = lightGrad;
+            ctx.beginPath();
+            ctx.moveTo(hx, vy + 12);
+            ctx.lineTo(dir > 0 ? hx + 120 : hx - 120, vy + 2);
+            ctx.lineTo(dir > 0 ? hx + 120 : hx - 120, vy + 26);
+            ctx.lineTo(hx, vy + 18);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // 8. Prompt or Nitro Bar
+            if (!v.occupied) {
+                const time = Date.now() * 0.005;
+                const bobY = Math.sin(time) * 4;
+                ctx.fillStyle = '#ffe600';
+                ctx.font = 'bold 11px "Space Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#ffe600';
+                ctx.shadowBlur = 8;
+                ctx.fillText("▲ PRESS [E] TO DRIVE 🏎️", vx + vw / 2, vy - 12 + bobY);
+            } else {
+                const barW = 44;
+                const barH = 5;
+                const barX = vx + (vw - barW) / 2;
+                const barY = vy - 12;
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.fillRect(barX, barY, barW, barH);
+                ctx.fillStyle = '#ff007f';
+                ctx.fillRect(barX, barY, barW * (v.nitro / v.maxNitro), barH);
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(barX, barY, barW, barH);
+            }
+
+            ctx.restore();
+        }
+    }
+
+    renderCollectibles(ctx) {
+        if (!this.collectibles) return;
+        const time = Date.now() * 0.004;
+
+        for (const c of this.collectibles) {
+            if (c.collected) continue;
+            const cx = c.x;
+            const cy = c.y + Math.sin(time * 2 + (c.floatTimer || 0)) * 5;
+
+            ctx.save();
+            if (c.type === 'shard') {
+                ctx.shadowColor = '#ffe600';
+                ctx.shadowBlur = 16;
+
+                ctx.translate(cx, cy);
+                ctx.rotate(time);
+
+                ctx.strokeStyle = '#ffe600';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, -14);
+                ctx.lineTo(10, 0);
+                ctx.lineTo(0, 14);
+                ctx.lineTo(-10, 0);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(255, 230, 0, 0.35)';
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.rotate(-time * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(0, 0, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.rotate(time);
+                ctx.fillStyle = '#ffe600';
+                ctx.font = 'bold 9px "Space Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText("💎 MEMORY", 0, -20);
+            } else {
+                ctx.shadowColor = '#00f3ff';
+                ctx.shadowBlur = 10;
+
+                ctx.translate(cx, cy);
+                ctx.rotate(time * 1.5);
+
+                ctx.fillStyle = '#ffe600';
+                ctx.strokeStyle = '#00f3ff';
+                ctx.lineWidth = 1.5;
+                ctx.fillRect(-6, -6, 12, 12);
+                ctx.strokeRect(-6, -6, 12, 12);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-2, -2, 4, 4);
+            }
+            ctx.restore();
+        }
+    }
+
+    applyUpgrades() {
+        const baseJump = this.level && this.level.isGalactic ? 12.0 : 11.5;
+        this.player.jumpForce = baseJump * (1 + (this.upgrades.jumpThrusters >= 1 ? 0.22 : 0));
+        this.jumpsLeft = this.upgrades.jumpThrusters >= 2 ? 2 : 1;
+        this.powers.dashMaxCooldown = Math.round(120 * (this.upgrades.phaseEngine >= 1 ? 0.65 : 1.0));
+        this.powers.shieldMaxCooldown = Math.round(280 * (this.upgrades.aegisShield >= 1 ? 0.7 : 1.0));
+    }
+
+    openWorkshop() {
+        const modal = document.getElementById('workshopModal');
+        if (!modal) return;
+        this.renderWorkshopCards();
+        modal.classList.remove('hidden');
+        if (window.soundManager) window.soundManager.playClick();
+    }
+
+    closeWorkshop() {
+        const modal = document.getElementById('workshopModal');
+        if (modal) modal.classList.add('hidden');
+        if (window.soundManager) window.soundManager.playClick();
+    }
+
+    renderWorkshopCards() {
+        const container = document.getElementById('workshopCardsContainer');
+        const naniteElem = document.getElementById('workshopNaniteCount');
+        if (naniteElem) naniteElem.textContent = this.nanites;
+        if (!container) return;
+
+        const TECH_TREE = [
+            {
+                key: 'jumpThrusters',
+                name: 'Quantum Jump Thrusters',
+                icon: '🚀',
+                tiers: [
+                    { title: 'Overclocked Springs', desc: '+22% Jump Force', cost: 30 },
+                    { title: 'Sub-Space Double Jump', desc: 'Jump a second time in mid-air!', cost: 65 },
+                    { title: 'Kinetic Float', desc: 'Hold Jump to glide gently down', cost: 110 }
+                ]
+            },
+            {
+                key: 'aegisShield',
+                name: 'Nanite Aegis Core',
+                icon: '🛡️',
+                tiers: [
+                    { title: 'Reinforced Capacitor', desc: '+50% Shield Duration (4.5s)', cost: 35 },
+                    { title: 'Laser Counter-Reflector', desc: 'Reflects laser blasts into enemies!', cost: 70 },
+                    { title: 'Auto-Shield Matrix', desc: 'Survives 1 fatal hit per level automatically!', cost: 120 }
+                ]
+            },
+            {
+                key: 'phaseEngine',
+                name: 'Hypersonic Phase Shift',
+                icon: '⚡',
+                tiers: [
+                    { title: 'Rapid Coolant', desc: '-35% Dash Cooldown', cost: 30 },
+                    { title: 'Sonic Shockwave', desc: 'Dashing shatters nearby spikes and barriers!', cost: 65 },
+                    { title: 'Twin Flash', desc: 'Stores 2 consecutive dash charges!', cost: 110 }
+                ]
+            },
+            {
+                key: 'vehicleDrive',
+                name: 'Apex Rover Supercharger',
+                icon: '🏎️',
+                tiers: [
+                    { title: 'Plasma Turbine', desc: '+35% Rover Top Speed & Torque', cost: 35 },
+                    { title: 'Hyper-Nitrous Core', desc: 'Nitro burns 50% slower, recharges faster', cost: 70 },
+                    { title: 'Kinetic Ram Plow', desc: 'Destroys all barriers & sentries in vehicle path!', cost: 120 }
+                ]
+            },
+            {
+                key: 'magnetCore',
+                name: 'Nanite Magnet Core',
+                icon: '🧲',
+                tiers: [
+                    { title: 'Flux Coil I', desc: 'Attracts Nanites within 160px radius', cost: 25 },
+                    { title: 'Flux Coil II', desc: 'Attracts Nanites within 360px radius', cost: 55 },
+                    { title: 'Memory Shard Radar', desc: 'Highlights hidden Memory Shards with sonar radar!', cost: 90 }
+                ]
+            },
+            {
+                key: 'chronoCore',
+                name: 'Chrono Accelerator',
+                icon: '⏳',
+                tiers: [
+                    { title: 'Sub-Atomic Dilation', desc: 'World slows to 0.18x speed in slowmo', cost: 35 },
+                    { title: 'Temporal Independence', desc: 'Byte moves at 100% normal speed during Slowmo!', cost: 75 },
+                    { title: 'Chrono Burst', desc: 'Landing creates a time-freeze shockwave', cost: 120 }
+                ]
+            }
+        ];
+
+        container.innerHTML = '';
+        TECH_TREE.forEach(tech => {
+            const currentTier = this.upgrades[tech.key] || 0;
+            const maxTier = tech.tiers.length;
+            const nextTier = tech.tiers[currentTier];
+
+            const card = document.createElement('div');
+            card.className = 'workshop-card';
+            if (currentTier >= maxTier) card.classList.add('maxed');
+
+            let pipsHtml = '';
+            for (let i = 0; i < maxTier; i++) {
+                pipsHtml += `<span class="tier-pip ${i < currentTier ? 'filled' : ''}"></span>`;
+            }
+
+            const btnHtml = currentTier >= maxTier
+                ? `<button class="btn-upgrade maxed" disabled>MAXED ⭐</button>`
+                : `<button class="btn-upgrade ${this.nanites >= nextTier.cost ? 'affordable' : 'unaffordable'}" data-tech="${tech.key}" data-cost="${nextTier.cost}">UPGRADE (⚡ ${nextTier.cost})</button>`;
+
+            const nextDesc = currentTier < maxTier
+                ? `<div class="next-tier-info"><strong>Tier ${currentTier + 1}: ${nextTier.title}</strong><br><span style="color: #94a3b8; font-size: 11px;">${nextTier.desc}</span></div>`
+                : `<div class="next-tier-info" style="color: #00ffcc;"><strong>All Tiers Mastered!</strong></div>`;
+
+            card.innerHTML = `
+                <div class="tech-header">
+                    <div class="tech-icon">${tech.icon}</div>
+                    <div>
+                        <h4 class="tech-name">${tech.name}</h4>
+                        <div class="tier-pips">${pipsHtml} <span style="font-size: 11px; color: var(--text-muted); margin-left: 6px;">Lv ${currentTier}/${maxTier}</span></div>
+                    </div>
+                </div>
+                ${nextDesc}
+                <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
+                    ${btnHtml}
+                </div>
+            `;
+
+            const btn = card.querySelector('.btn-upgrade:not([disabled])');
+            if (btn) {
+                btn.onclick = () => {
+                    const cost = parseInt(btn.dataset.cost, 10);
+                    if (this.nanites >= cost) {
+                        this.nanites -= cost;
+                        this.upgrades[tech.key] = currentTier + 1;
+                        localStorage.setItem('astro_glitch_nanites', this.nanites);
+                        localStorage.setItem('astro_glitch_upgrades', JSON.stringify(this.upgrades));
+                        if (window.soundManager) window.soundManager.playUpgradeFanfare();
+                        this.applyUpgrades();
+                        this.renderWorkshopCards();
+                        this.updateHUD();
+                        this.showBanner(`UPGRADED: ${tech.name} (Tier ${currentTier + 1})! ⭐`, 2000);
+                    }
+                };
+            }
+
+            container.appendChild(card);
+        });
+    }
+
+    openMemoryArchive() {
+        const modal = document.getElementById('memoryArchiveModal');
+        if (!modal) return;
+        this.renderMemoryArchive();
+        modal.classList.remove('hidden');
+        if (window.soundManager) window.soundManager.playClick();
+    }
+
+    closeMemoryArchive() {
+        const modal = document.getElementById('memoryArchiveModal');
+        if (modal) modal.classList.add('hidden');
+        if (window.soundManager) window.soundManager.playClick();
+    }
+
+    renderMemoryArchive() {
+        const container = document.getElementById('memoryArchiveGrid');
+        if (!container) return;
+
+        const logs = StoryManager.MEMORY_LOGS;
+        const unlocked = window.storyManager ? window.storyManager.unlockedShards : new Set();
+
+        container.innerHTML = '';
+        Object.keys(logs).forEach((key) => {
+            const shard = logs[key];
+            const isUnlocked = unlocked.has(key);
+
+            const card = document.createElement('div');
+            card.className = `memory-archive-card ${isUnlocked ? 'unlocked' : 'locked'}`;
+
+            if (isUnlocked) {
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span style="font-size: 11px; font-weight: 800; color: #ffe600;">SECTOR ${shard.sector} // SHARD RECOVERED</span>
+                        <span style="font-size: 16px;">💎</span>
+                    </div>
+                    <h4 style="margin: 0 0 6px 0; color: #ffffff; font-size: 13px;">${shard.title}</h4>
+                    <p style="margin: 0; font-size: 12px; color: #fef08a; font-style: italic; line-height: 1.5;">"${shard.text}"</p>
+                `;
+            } else {
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span style="font-size: 11px; font-weight: 800; color: #64748b;">SECTOR ${shard.sector} // ENCRYPTED</span>
+                        <span style="font-size: 16px; opacity: 0.5;">🔒</span>
+                    </div>
+                    <h4 style="margin: 0 0 6px 0; color: #94a3b8; font-size: 13px;">[CORRUPT MEMORY SECTOR]</h4>
+                    <p style="margin: 0; font-size: 12px; color: #64748b; font-style: italic;">Find Dr. Maya's memory shard in Sector ${shard.sector} to decrypt this log.</p>
+                `;
+            }
+
+            container.appendChild(card);
+        });
     }
 
     loop(timestamp) {

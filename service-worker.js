@@ -1,4 +1,4 @@
-const CACHE_NAME = 'astro-glitch-v5';
+const CACHE_NAME = 'astro-glitch-v7';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const ASSETS_TO_CACHE = [
   './textures.js',
   './renderer3d.js',
   './audio.js',
+  './cutscenes.js',
   './levels.js',
   './game.js',
   './manifest.json',

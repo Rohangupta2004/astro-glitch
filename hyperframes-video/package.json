@@ -1,0 +1,21 @@
+{
+  "name": "astro-glitch-hyperframes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Astro Glitch: Quantum Heist — HeyGen HyperFrames Motion Graphics Composition",
+  "scripts": {
+    "preview": "npx hyperframes preview",
+    "render": "npx hyperframes render --output astro-glitch-briefing.mp4",
+    "check": "npx hyperframes check"
+  },
+  "keywords": [
+    "hyperframes",
+    "heygen",
+    "motion-graphics",
+    "kinetic-typography",
+    "video-generation"
+  ],
+  "dependencies": {
+    "gsap": "^3.12.5"
+  }
+}

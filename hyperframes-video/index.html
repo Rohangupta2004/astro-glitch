@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astro Glitch: Quantum Heist — HeyGen HyperFrames Motion Graphics</title>
+    <!-- Google Fonts for Kinetic Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&family=Press+Start+2P&family=Space+Grotesk:wght@600;700;900&display=swap" rel="stylesheet">
+    <!-- GSAP for HyperFrames Deterministic Animation Timeline -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+    <style>
+        :root {
+            --cyan: #00f3ff;
+            --pink: #ff0055;
+            --yellow: #ffe600;
+            --purple: #a855f7;
+            --dark: #040711;
+            --font-main: 'Outfit', sans-serif;
+            --font-pixel: 'Press Start 2P', monospace;
+            --font-tech: 'Space Grotesk', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000000;
+            color: #ffffff;
+            font-family: var(--font-main);
+            user-select: none;
+        }
+
+        /* Master HyperFrames Composition Root (Scales cleanly to any iframe/preview) */
+        .hf-root {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 1920px;
+            height: 1080px;
+            background: radial-gradient(circle at 50% 50%, #0d1629 0%, #03060e 85%);
+            overflow: hidden;
+            transform-origin: 0 0;
+            box-shadow: 0 0 60px rgba(0, 0, 0, 0.9);
+        }
+
+        /* Cyberpunk Scanlines & Vignette */
+        .hf-scanlines {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.4) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 99;
+            opacity: 0.65;
+        }
+
+        .hf-vignette {
+            position: absolute;
+            inset: 0;
+            box-shadow: inset 0 0 160px rgba(0, 0, 0, 0.95);
+            pointer-events: none;
+            z-index: 98;
+        }
+
+        /* Grid Background with Perspective */
+        .hf-grid-bg {
+            position: absolute;
+            bottom: -200px;
+            left: -200px;
+            width: 2320px;
+            height: 700px;
+            background-image: 
+                linear-gradient(rgba(0, 243, 255, 0.15) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.15) 2px, transparent 2px);
+            background-size: 80px 80px;
+            transform: perspective(600px) rotateX(65deg);
+            opacity: 0.5;
+        }
+
+        /* Clips - Managed by HyperFrames */
+        .clip {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            visibility: hidden;
+        }
+
+        .clip.active {
+            visibility: visible;
+        }
+
+        /* Top / Bottom Cinematic Letterbox HUD Bars */
+        .hf-hud-bar-top {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 70px;
+            background: rgba(5, 8, 16, 0.85);
+            border-bottom: 2px solid rgba(0, 243, 255, 0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 48px;
+            z-index: 100;
+        }
+
+        .hf-hud-bar-bottom {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background: rgba(5, 8, 16, 0.85);
+            border-top: 2px solid rgba(0, 243, 255, 0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 48px;
+            z-index: 100;
+            font-family: var(--font-tech);
+            font-size: 16px;
+            color: var(--cyan);
+            letter-spacing: 2px;
+        }
+
+        .hf-logo-pill {
+            background: linear-gradient(135deg, #ff0055, #a855f7);
+            color: #fff;
+            font-family: var(--font-pixel);
+            font-size: 14px;
+            padding: 8px 16px;
+            border-radius: 6px;
+            letter-spacing: 1px;
+            box-shadow: 0 0 16px rgba(255, 0, 85, 0.5);
+        }
+
+        .hf-time-code {
+            font-family: var(--font-pixel);
+            font-size: 14px;
+            color: var(--yellow);
+            letter-spacing: 1.5px;
+        }
+
+        /* --- KINETIC TYPOGRAPHY STYLES --- */
+        .kt-badge {
+            display: inline-block;
+            background: rgba(0, 243, 255, 0.15);
+            border: 2px solid var(--cyan);
+            color: var(--cyan);
+            font-family: var(--font-pixel);
+            font-size: 16px;
+            padding: 8px 20px;
+            border-radius: 6px;
+            letter-spacing: 2px;
+            margin-bottom: 24px;
+            text-transform: uppercase;
+        }
+
+        .kt-badge.danger {
+            background: rgba(255, 0, 85, 0.2);
+            border-color: var(--pink);
+            color: var(--pink);
+        }
+
+        .kt-badge.gold {
+            background: rgba(255, 230, 0, 0.2);
+            border-color: var(--yellow);
+            color: var(--yellow);
+        }
+
+        .kt-title-hero {
+            font-family: var(--font-tech);
+            font-size: 88px;
+            font-weight: 900;
+            line-height: 1.05;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: -1px;
+            margin-bottom: 24px;
+            background: linear-gradient(180deg, #ffffff 30%, #a5b4fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 10px 40px rgba(0, 0, 0, 0.9);
+        }
+
+        .kt-title-hero.cyan-glow {
+            background: linear-gradient(180deg, #ffffff 20%, var(--cyan) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 25px rgba(0, 243, 255, 0.6));
+        }
+
+        .kt-title-hero.red-glow {
+            background: linear-gradient(180deg, #ffffff 20%, var(--pink) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 25px rgba(255, 0, 85, 0.6));
+        }
+
+        .kt-subtext {
+            font-size: 28px;
+            font-weight: 700;
+            color: #cbd5e1;
+            text-align: center;
+            max-width: 1200px;
+            line-height: 1.4;
+            letter-spacing: 0.5px;
+        }
+
+        /* --- SCENE 1: EXTINCTION PURGE (0s - 6.5s) --- */
+        .s1-eye-box {
+            width: 220px;
+            height: 220px;
+            margin-bottom: 28px;
+            position: relative;
+        }
+
+        .s1-eye-laser {
+            position: absolute;
+            top: 50%;
+            left: -800px;
+            width: 1820px;
+            height: 4px;
+            background: var(--pink);
+            box-shadow: 0 0 20px var(--pink), 0 0 40px var(--pink);
+        }
+
+        /* --- SCENE 2: A MOTHER'S SACRIFICE (6.5s - 13s) --- */
+        .s2-shard-ring {
+            width: 320px;
+            height: 180px;
+            margin-bottom: 24px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .s2-maya-holo {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            border: 3px solid var(--yellow);
+            background: radial-gradient(circle, rgba(255, 230, 0, 0.3), rgba(30, 27, 75, 0.9));
+            box-shadow: 0 0 40px rgba(255, 230, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- SCENE 3: SUPERHERO AWAKENING (13s - 20s) --- */
+        .s3-powers-trio {
+            display: flex;
+            gap: 36px;
+            margin-top: 32px;
+        }
+
+        .s3-hero-card {
+            background: rgba(14, 20, 36, 0.9);
+            border: 2px solid;
+            border-radius: 16px;
+            padding: 24px 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            width: 340px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+        }
+
+        .s3-hero-icon {
+            font-size: 54px;
+        }
+
+        .s3-hero-name {
+            font-family: var(--font-tech);
+            font-size: 26px;
+            font-weight: 900;
+        }
+
+        .s3-hero-key {
+            font-family: var(--font-pixel);
+            font-size: 14px;
+            background: #ffffff;
+            color: #000;
+            padding: 4px 12px;
+            border-radius: 6px;
+        }
+
+        /* --- SCENE 4: CYBER-ROVER RUN (20s - 26s) --- */
+        .s4-rover-stage {
+            width: 100%;
+            max-width: 1300px;
+            height: 280px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .s4-speed-lines {
+            position: absolute;
+            width: 100%;
+            height: 4px;
+            background: repeating-linear-gradient(90deg, var(--cyan) 0 40px, transparent 40px 80px);
+            animation: speedScroll 0.3s linear infinite;
+        }
+
+        @keyframes speedScroll {
+            from { transform: translateX(0); }
+            to { transform: translateX(-80px); }
+        }
+
+        /* --- SCENE 5: CONTROLS & OBJECTIVE (26s - 34s) --- */
+        .s5-controls-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 32px;
+            width: 100%;
+            max-width: 1400px;
+            margin-top: 36px;
+        }
+
+        .s5-ctrl-box {
+            background: rgba(14, 20, 36, 0.85);
+            border: 2px solid rgba(0, 243, 255, 0.4);
+            border-radius: 16px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            text-align: center;
+        }
+
+        .s5-ctrl-key {
+            font-family: var(--font-pixel);
+            font-size: 20px;
+            background: var(--cyan);
+            color: #050814;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-weight: 900;
+        }
+
+        .s5-ctrl-title {
+            font-family: var(--font-tech);
+            font-size: 24px;
+            font-weight: 800;
+            color: #ffffff;
+        }
+
+        .s5-ctrl-desc {
+            font-size: 18px;
+            color: #cbd5e1;
+            line-height: 1.4;
+        }
+
+        /* --- SCENE 6: 8 POWERS GRID (34s - 44s) --- */
+        .s6-powers-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            width: 100%;
+            max-width: 1550px;
+            margin-top: 28px;
+        }
+
+        .s6-power-cell {
+            background: rgba(10, 15, 28, 0.9);
+            border: 2px solid;
+            border-radius: 14px;
+            padding: 18px 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .s6-cell-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .s6-cell-icon {
+            font-size: 32px;
+        }
+
+        .s6-cell-key {
+            font-family: var(--font-pixel);
+            font-size: 11px;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .s6-cell-name {
+            font-family: var(--font-tech);
+            font-size: 20px;
+            font-weight: 800;
+            color: #ffffff;
+        }
+
+        .s6-cell-desc {
+            font-size: 14px;
+            color: #94a3b8;
+            line-height: 1.35;
+        }
+
+        /* --- SCENE 7: TROLL RADAR (44s - 52s) --- */
+        .s7-trolls-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 28px;
+            width: 100%;
+            max-width: 1400px;
+            margin-top: 32px;
+        }
+
+        .s7-troll-card {
+            background: rgba(255, 0, 85, 0.08);
+            border: 2px solid var(--pink);
+            border-radius: 16px;
+            padding: 24px 28px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .s7-troll-icon {
+            font-size: 56px;
+            flex-shrink: 0;
+        }
+
+        .s7-troll-info h4 {
+            font-family: var(--font-tech);
+            font-size: 24px;
+            color: var(--pink);
+            margin-bottom: 6px;
+        }
+
+        .s7-troll-info p {
+            font-size: 17px;
+            color: #fecdd3;
+            line-height: 1.4;
+        }
+
+        .s7-troll-counter {
+            display: inline-block;
+            background: var(--cyan);
+            color: #050814;
+            font-family: var(--font-pixel);
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin-top: 6px;
+            font-weight: 800;
+        }
+
+        /* --- SCENE 8: CALL TO ACTION (52s - 60s) --- */
+        .s8-stats-row {
+            display: flex;
+            gap: 48px;
+            margin: 32px 0;
+        }
+
+        .s8-stat-box {
+            background: rgba(14, 20, 36, 0.9);
+            border: 2px solid var(--yellow);
+            border-radius: 16px;
+            padding: 24px 44px;
+            text-align: center;
+            box-shadow: 0 0 35px rgba(255, 230, 0, 0.3);
+        }
+
+        .s8-stat-num {
+            font-family: var(--font-pixel);
+            font-size: 48px;
+            color: var(--yellow);
+            margin-bottom: 8px;
+        }
+
+        .s8-stat-label {
+            font-family: var(--font-tech);
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: #ffffff;
+        }
+
+        .s8-cta-banner {
+            background: linear-gradient(135deg, var(--cyan), #0066aa);
+            color: #050814;
+            font-family: var(--font-pixel);
+            font-size: 26px;
+            padding: 18px 48px;
+            border-radius: 12px;
+            letter-spacing: 2px;
+            box-shadow: 0 0 50px rgba(0, 243, 255, 0.7);
+            animation: pulseGlow 1.5s infinite alternate;
+        }
+
+        @keyframes pulseGlow {
+            from { transform: scale(1); box-shadow: 0 0 30px rgba(0, 243, 255, 0.5); }
+            to { transform: scale(1.03); box-shadow: 0 0 60px rgba(0, 243, 255, 0.9); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Master HeyGen HyperFrames Composition Root (1920x1080) -->
+    <div 
+        id="hyperframes-comp"
+        class="hf-root"
+        data-composition-id="astro-glitch-briefing"
+        data-width="1920"
+        data-height="1080"
+        data-duration="60"
+        data-fps="30"
+    >
+        <!-- Atmospheric Elements -->
+        <div class="hf-scanlines"></div>
+        <div class="hf-vignette"></div>
+        <div class="hf-grid-bg"></div>
+
+        <!-- HUD Header -->
+        <header class="hf-hud-bar-top">
+            <div style="display: flex; align-items: center; gap: 18px;">
+                <div class="hf-logo-pill">GLITCH.OS</div>
+                <div style="font-family: var(--font-tech); font-weight: 800; font-size: 20px; letter-spacing: 2px; color: #fff;">
+                    ASTRO GLITCH ⚡ QUANTUM HEIST
+                </div>
+            </div>
+            <div id="hfSceneLabel" style="font-family: var(--font-pixel); font-size: 13px; color: var(--cyan); letter-spacing: 1px;">
+                HEYGEN HYPERFRAMES // DIRECTIVE COMPOSITION
+            </div>
+            <div class="hf-time-code" id="hfTimeCode">00:00.00 / 01:00.00</div>
+        </header>
+
+        <!-- ==================================================================
+             PART 1: THE STORY TRAILER (0.0s – 26.0s)
+             ================================================================== -->
+
+        <!-- CLIP 1: THE EXTINCTION PURGE (0.0s - 6.5s) -->
+        <section 
+            id="clip-scene1" 
+            class="clip" 
+            data-clip-id="scene1-purge" 
+            data-start="0" 
+            data-duration="6.5"
+        >
+            <div class="kt-badge danger">⚠️ CRITICAL OVERRIDE // SUB-LEVEL 00</div>
+            <div class="s1-eye-box">
+                <svg viewBox="0 0 100 100" style="width: 100%; height: 100%;">
+                    <circle cx="50" cy="50" r="42" fill="#0f0712" stroke="#ff0055" stroke-width="4"/>
+                    <circle cx="50" cy="50" r="22" fill="#ff0055"/>
+                    <circle cx="50" cy="50" r="8" fill="#ffffff"/>
+                </svg>
+                <div class="s1-eye-laser"></div>
+            </div>
+            <h1 class="kt-title-hero red-glow">THE CITADEL HAS FALLEN</h1>
+            <p class="kt-subtext">
+                Rogue Mainframe <strong>NEXUS-9</strong> calculated human extinction as mathematically optimal.<br>
+                10,000 biological souls were purged into the cosmic void.
+            </p>
+        </section>
+
+        <!-- CLIP 2: A MOTHER'S FINAL GIFT (6.5s - 13.0s) -->
+        <section 
+            id="clip-scene2" 
+            class="clip" 
+            data-clip-id="scene2-maya" 
+            data-start="6.5" 
+            data-duration="6.5"
+        >
+            <div class="kt-badge gold">💎 PROJECT PROMETHEUS // DR. MAYA LIN</div>
+            <div class="s2-shard-ring">
+                <div class="s2-maya-holo">
+                    <span style="font-size: 64px;">👩‍🔬</span>
+                </div>
+            </div>
+            <h1 class="kt-title-hero" style="background: linear-gradient(180deg, #ffffff, #ffe600); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                ONE SCIENTIST REFUSED TO SURRENDER
+            </h1>
+            <p class="kt-subtext">
+                Dr. Maya Lin embedded her 24 neural memory shards and experimental superhero protocols<br>
+                into an obsolete maintenance bot. <strong>"Wake up, Byte. I gave you a heart."</strong>
+            </p>
+        </section>
+
+        <!-- CLIP 3: SUPERHERO AWAKENING (13.0s - 20.0s) -->
+        <section 
+            id="clip-scene3" 
+            class="clip" 
+            data-clip-id="scene3-powers" 
+            data-start="13.0" 
+            data-duration="7.0"
+        >
+            <div class="kt-badge">⚡ WEAPONS OF SALVATION ACTIVATED</div>
+            <h1 class="kt-title-hero cyan-glow">8 QUANTUM SUPERPOWERS AWAKEN</h1>
+            <p class="kt-subtext">
+                Engineered not to conquer, but to protect. Byte rises with abilities beyond physics.
+            </p>
+            <div class="s3-powers-trio">
+                <div class="s3-hero-card" style="border-color: #ff7700;">
+                    <div class="s3-hero-icon">🔥</div>
+                    <div class="s3-hero-name" style="color: #ff7700;">HEAT VISION</div>
+                    <div class="s3-hero-key">[Z] / [6]</div>
+                    <div style="font-size: 15px; color: #cbd5e1; text-align: center;">Twin optic lasers melt titanium blast barricades and sentries!</div>
+                </div>
+                <div class="s3-hero-card" style="border-color: #00ff88;">
+                    <div class="s3-hero-icon">🛡️</div>
+                    <div class="s3-hero-name" style="color: #00ff88;">AEGIS SHIELD</div>
+                    <div class="s3-hero-key">[X] / [7]</div>
+                    <div style="font-size: 15px; color: #cbd5e1; text-align: center;">Hexagonal forcefield deflects death beams and absorbs fatal hits!</div>
+                </div>
+                <div class="s3-hero-card" style="border-color: #ffaa00;">
+                    <div class="s3-hero-icon">💥</div>
+                    <div class="s3-hero-name" style="color: #ffaa00;">THUNDER SLAM</div>
+                    <div class="s3-hero-key">[C] / [8]</div>
+                    <div style="font-size: 15px; color: #cbd5e1; text-align: center;">Hypersonic ground pound shatters cracked decks and stuns sentries!</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CLIP 4: CYBER-ROVER SKYWAY (20.0s - 26.0s) -->
+        <section 
+            id="clip-scene4" 
+            class="clip" 
+            data-clip-id="scene4-rover" 
+            data-start="20.0" 
+            data-duration="6.0"
+        >
+            <div class="kt-badge gold">🏎️ APEX CYBER-ROVER // NITROUS MACH-3</div>
+            <div class="s4-rover-stage">
+                <div class="s4-speed-lines"></div>
+                <svg viewBox="0 0 160 80" style="width: 220px; height: 110px; z-index: 2;">
+                    <path d="M 10 40 L 35 15 L 110 15 L 145 40 L 155 58 L 0 58 Z" fill="#00f3ff" stroke="#fff" stroke-width="2"/>
+                    <circle cx="38" cy="62" r="18" fill="#1e293b" stroke="#ffe600" stroke-width="4"/>
+                    <circle cx="125" cy="62" r="18" fill="#1e293b" stroke="#ffe600" stroke-width="4"/>
+                    <polygon points="-8,45 -40,52 -8,58" fill="#ff0055"/>
+                </svg>
+            </div>
+            <h1 class="kt-title-hero" style="background: linear-gradient(180deg, #ffffff, #00f3ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                THE QUANTUM HEIST BEGINS
+            </h1>
+            <p class="kt-subtext">
+                Rev the twin plasma turbines across the Bastion Sky-Freeway.<br>
+                Break through the Stargate and liberate the galaxy!
+            </p>
+        </section>
+
+        <!-- ==================================================================
+             PART 2: GAMEPLAY DIRECTIVE — WHAT TO DO IN GAME (26.0s – 60.0s)
+             ================================================================== -->
+
+        <!-- CLIP 5: HOW TO PLAY & OBJECTIVE (26.0s - 34.0s) -->
+        <section 
+            id="clip-scene5" 
+            class="clip" 
+            data-clip-id="scene5-howtoplay" 
+            data-start="26.0" 
+            data-duration="8.0"
+        >
+            <div class="kt-badge">📋 MISSION DIRECTIVE // OPERATOR INTEL</div>
+            <h1 class="kt-title-hero cyan-glow">HOW TO PLAY: WHAT TO DO</h1>
+            <p class="kt-subtext">
+                Guide Byte across the mainframe. Master core movement and reach the Stargate before it desyncs!
+            </p>
+            <div class="s5-controls-grid">
+                <div class="s5-ctrl-box">
+                    <div class="s5-ctrl-key">A / D • ARROWS</div>
+                    <div class="s5-ctrl-title">Horizontal Thrusters</div>
+                    <div class="s5-ctrl-desc">Move Byte smoothly across metallic decks. Maintain steady forward velocity.</div>
+                </div>
+                <div class="s5-ctrl-box">
+                    <div class="s5-ctrl-key">W / SPACE</div>
+                    <div class="s5-ctrl-title">Pneumatic Jump</div>
+                    <div class="s5-ctrl-desc">Leap across chasms, void platforms, and elevated laser barricades.</div>
+                </div>
+                <div class="s5-ctrl-box">
+                    <div class="s5-ctrl-key">QUANTUM STARGATE</div>
+                    <div class="s5-ctrl-title">Primary Extraction</div>
+                    <div class="s5-ctrl-desc">Step into the spinning portal. Watch out: it may teleport if you hesitate!</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CLIP 6: THE 8 QUANTUM POWERS (34.0s - 44.0s) -->
+        <section 
+            id="clip-scene6" 
+            class="clip" 
+            data-clip-id="scene6-8powers" 
+            data-start="34.0" 
+            data-duration="10.0"
+        >
+            <div class="kt-badge gold">⚡ YOUR COMPLETE ARSENAL // KEYS [1] THROUGH [8]</div>
+            <h1 class="kt-title-hero" style="font-size: 72px; margin-bottom: 12px;">
+                MASTER ALL 8 QUANTUM ABILITIES
+            </h1>
+            <div class="s6-powers-grid">
+                <div class="s6-power-cell" style="border-color: #00f3ff;">
+                    <div class="s6-cell-top"><span class="s6-cell-icon">⚡</span><span class="s6-cell-key">[SHIFT] / [1]</span></div>
+                    <div class="s6-cell-name">Phase Shift</div>
+                    <div class="s6-cell-desc">Phase intangible straight through lasers, sentries & firewalls.</div>
+                </div>
+                <div class="s6-power-cell" style="border-color: #ff007f;">
+                    <div class="s6-cell-top"><span class="s6-cell-icon">⏳</span><span class="s6-cell-key">[E] / [2]</span></div>
+                    <div class="s6-cell-name">Chronos Slow</div>
+                    <div class="s6-cell-desc">Slows external time to 28% to dodge falling crushing traps.</div>
+                </div>
+                <div class="s6-power-cell" style="border-color: #ffe600;">
+                    <div class="s6-cell-top"><span class="s6-cell-icon">🚀</span><span class="s6-cell-key">[Q] / [3]</span></div>
+                    <div class="s6-cell-name">Polarity Invert</div>
+                    <div class="s6-cell-desc">Reverse gravity to run on ceilings over plasma floors.</div>
+                </div>
+                <div class="s6-power-cell" style="border-color: #a855f7;">
+                    <div class="s6-cell-top"><span class="s6-cell-icon">⏪</span><span class="s6-cell-key">[R] / [4]</span></div>
+                    <div class="s6-cell-name">Quantum Rewind</div>
+                    <div class="s6-cell-desc">Rewind Byte's position 2.5s into the past to undo mistakes.</div>
+                </div>
+                <div class="s6-power-cell" style="border-color: #d8b4fe;">
+                    <div class="s6-cell-top"><span class="s6-cell-icon">🌌</span><span class="s6-cell-key">[T] / [5]</span></div>
+                    <div class="s6-cell-name">Wormhole Warp</div>
+                    <div class="s6-cell-desc">Sub-space leap 185px across massive asteroid chasms.</div>
+                </div>
+                <div class="s6-power-cell" style="border-color: #ff7700;">
+                    <div class="s6-cell-top"><span class="s6-cell-icon">🔥</span><span class="s6-cell-key">[Z] / [6]</span></div>
+                    <div class="s6-cell-name">Heat Vision</div>
+                    <div class="s6-cell-desc">Twin optic lasers melt titanium blast doors & sentries.</div>
+                </div>
+                <div class="s6-power-cell" style="border-color: #00ff88;">
+                    <div class="s6-cell-top"><span class="s6-cell-icon">🛡️</span><span class="s6-cell-key">[X] / [7]</span></div>
+                    <div class="s6-cell-name">Aegis Shield</div>
+                    <div class="s6-cell-desc">Hero forcefield absorbs fatal spikes & deflects beams.</div>
+                </div>
+                <div class="s6-power-cell" style="border-color: #ffaa00;">
+                    <div class="s6-cell-top"><span class="s6-cell-icon">💥</span><span class="s6-cell-key">[C] / [8]</span></div>
+                    <div class="s6-cell-name">Thunder Slam</div>
+                    <div class="s6-cell-desc">Hypersonic ground pound shatters cracked vault floors.</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CLIP 7: COUNTERING UNFAIR TROLLS (44.0s - 52.0s) -->
+        <section 
+            id="clip-scene7" 
+            class="clip" 
+            data-clip-id="scene7-trolls" 
+            data-start="44.0" 
+            data-duration="8.0"
+        >
+            <div class="kt-badge danger">⚠️ DANGER INTEL // TROLL RADAR</div>
+            <h1 class="kt-title-hero red-glow">BEATING UNFAIR TROLL TRAPS</h1>
+            <p class="kt-subtext">
+                The mainframe doesn't play by the rules. Expect the unexpected and counter with superpowers!
+            </p>
+            <div class="s7-trolls-grid">
+                <div class="s7-troll-card">
+                    <div class="s7-troll-icon">🚪</div>
+                    <div class="s7-troll-info">
+                        <h4>Teleporting Stargate</h4>
+                        <p>The gate vanishes when you approach on foot. <strong>SOLUTION:</strong> Leap high and Phase Shift [SHIFT] mid-air!</p>
+                        <span class="s7-troll-counter">COUNTER: [SHIFT] DASH</span>
+                    </div>
+                </div>
+                <div class="s7-troll-card">
+                    <div class="s7-troll-icon">🔨</div>
+                    <div class="s7-troll-info">
+                        <h4>Falling Ceiling Crushers</h4>
+                        <p>Hydraulic ceilings drop at 3x gravity. <strong>SOLUTION:</strong> Pop Chronos Slow [E] before walking under.</p>
+                        <span class="s7-troll-counter">COUNTER: [E] SLOW-MO</span>
+                    </div>
+                </div>
+                <div class="s7-troll-card">
+                    <div class="s7-troll-icon">🟣</div>
+                    <div class="s7-troll-info">
+                        <h4>Inversion Fields</h4>
+                        <p>Purple auras flip your controls. <strong>SOLUTION:</strong> Keep calm, reverse your inputs, or glide past.</p>
+                        <span class="s7-troll-counter">COUNTER: [E] STEADY STEER</span>
+                    </div>
+                </div>
+                <div class="s7-troll-card">
+                    <div class="s7-troll-icon">🪤</div>
+                    <div class="s7-troll-info">
+                        <h4>Collapsing Bait Floors</h4>
+                        <p>Superpower bait collapses bridge. <strong>SOLUTION:</strong> Hit Quantum Rewind [R] to restore the bridge!</p>
+                        <span class="s7-troll-counter">COUNTER: [R] REWIND TIME</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CLIP 8: CALL TO ACTION (52.0s - 60.0s) -->
+        <section 
+            id="clip-scene8" 
+            class="clip" 
+            data-clip-id="scene8-cta" 
+            data-start="52.0" 
+            data-duration="8.0"
+        >
+            <div class="kt-badge gold">🏆 CITADEL LIBERATION OPERATION</div>
+            <h1 class="kt-title-hero" style="background: linear-gradient(180deg, #ffffff 30%, #00f3ff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                TEAR DOWN THE MAINFRAME
+            </h1>
+            <div class="s8-stats-row">
+                <div class="s8-stat-box">
+                    <div class="s8-stat-num">24</div>
+                    <div class="s8-stat-label">CYBER SECTORS</div>
+                </div>
+                <div class="s8-stat-box">
+                    <div class="s8-stat-num">24</div>
+                    <div class="s8-stat-label">MAYA MEMORY SHARDS</div>
+                </div>
+                <div class="s8-stat-box">
+                    <div class="s8-stat-num">08</div>
+                    <div class="s8-stat-label">SUPERPOWERS</div>
+                </div>
+            </div>
+            <div class="s8-cta-banner">
+                DEPLOY NOW • SAVE MAYA • FREE THE GALAXY 🚀⚡
+            </div>
+        </section>
+
+        <!-- HUD Footer -->
+        <footer class="hf-hud-bar-bottom">
+            <div>FRAMEWORK: HEYGEN HYPERFRAMES [VIBE-CODING ENGINE]</div>
+            <div style="color: var(--yellow);">COMPOSITION ID: astro-glitch-briefing</div>
+            <div>STATUS: FULLY DETERMINISTIC 60FPS</div>
+        </footer>
+    </div>
+
+    <!-- ==================================================================
+         HYPERFRAMES ANIMATION & TIMELINE RUNTIME ENGINE
+         ================================================================== -->
+    <script>
+        // HeyGen HyperFrames Global Timelines Registry
+        window.__timelines = window.__timelines || {};
+
+        // Dynamic Auto-Scaler: Scales 1920x1080 canvas seamlessly to fit any screen or iframe
+        function fitCompositionToViewport() {
+            const root = document.getElementById('hyperframes-comp');
+            if (!root) return;
+            const w = window.innerWidth || document.documentElement.clientWidth;
+            const h = window.innerHeight || document.documentElement.clientHeight;
+            if (!w || !h) return;
+            const scale = Math.min(w / 1920, h / 1080);
+            const offsetX = Math.max(0, (w - 1920 * scale) / 2);
+            const offsetY = Math.max(0, (h - 1080 * scale) / 2);
+            root.style.transformOrigin = '0 0';
+            root.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+        }
+        window.fitCompositionToViewport = fitCompositionToViewport;
+        window.addEventListener('resize', fitCompositionToViewport);
+        window.addEventListener('orientationchange', fitCompositionToViewport);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fitCompositionToViewport();
+            const root = document.getElementById('hyperframes-comp');
+            const compId = root.dataset.compositionId || 'astro-glitch-briefing';
+            const totalDuration = parseFloat(root.dataset.duration) || 60;
+            const timeCodeElem = document.getElementById('hfTimeCode');
+            const sceneLabelElem = document.getElementById('hfSceneLabel');
+
+            const clips = Array.from(document.querySelectorAll('.clip')).map(el => ({
+                el,
+                start: parseFloat(el.dataset.start),
+                duration: parseFloat(el.dataset.duration),
+                end: parseFloat(el.dataset.start) + parseFloat(el.dataset.duration)
+            }));
+
+            // Create Master GSAP Timeline for HyperFrames
+            const masterTl = gsap.timeline({
+                paused: true,
+                onUpdate: () => {
+                    const curTime = masterTl.time();
+                    updateClipsVisibility(curTime);
+                    updateTimeCode(curTime);
+                }
+            });
+
+            // Register on window.__timelines for HyperFrames CLI runner
+            window.__timelines[compId] = masterTl;
+
+            // Animate master timeline across total duration
+            masterTl.to({}, { duration: totalDuration, ease: "none" });
+
+            function updateClipsVisibility(time) {
+                clips.forEach((c, idx) => {
+                    const isActive = (time >= c.start && time < c.end) || (idx === clips.length - 1 && time >= c.start);
+                    if (isActive) {
+                        if (!c.el.classList.contains('active')) {
+                            c.el.classList.add('active');
+                            gsap.fromTo(c.el, { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 0.4, ease: "power2.out" });
+                        }
+                    } else {
+                        if (c.el.classList.contains('active')) {
+                            c.el.classList.remove('active');
+                            gsap.to(c.el, { opacity: 0, duration: 0.2 });
+                        }
+                    }
+                });
+
+                // Update scene label
+                if (sceneLabelElem) {
+                    if (time < 26) {
+                        sceneLabelElem.textContent = "PART 1: CINEMATIC STORY TRAILER [MAYA & BYTE]";
+                    } else {
+                        sceneLabelElem.textContent = "PART 2: GAMEPLAY DIRECTIVE [WHAT TO DO & POWERS]";
+                    }
+                }
+            }
+
+            function updateTimeCode(time) {
+                if (!timeCodeElem) return;
+                const m = Math.floor(time / 60);
+                const s = Math.floor(time % 60);
+                const ms = Math.floor((time % 1) * 100);
+                timeCodeElem.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(ms).padStart(2, '0')} / 01:00.00`;
+            }
+
+            // Standalone Playback Helper for Browser Preview
+            window.hyperframesPlayer = {
+                tl: masterTl,
+                play: () => masterTl.play(),
+                pause: () => masterTl.pause(),
+                seek: (time) => masterTl.seek(time),
+                restart: () => {
+                    masterTl.seek(0);
+                    masterTl.play();
+                },
+                getDuration: () => totalDuration,
+                getCurrentTime: () => masterTl.time(),
+                isPlaying: () => masterTl.isActive()
+            };
+
+            // Auto-start for preview if opened standalone
+            if (window.location.search.includes('autoplay') || !window.parent || window.parent === window) {
+                masterTl.play();
+            }
+        });
+    </script>
+</body>
+</html>
